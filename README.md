@@ -5,8 +5,8 @@ A MUD in Haskell. At least, that's the goal; presently all I have here is just t
 
 To play the game on a Mac:
 
-1. Download the Haskell Platform.
+1. Download the Haskell Platform for Mac: http://www.haskell.org/platform/mac.html
 
-2. Run "runmefirst.sh".
+2. Open Terminal, navigate to the project root directory and run the following command: ````./runmefirst.sh````
 
-3. From the parent directory of the "Mud" directory, type "runghc Mud/Main.hs".
+3. Navigate to the ````Mud```` folder (````cd Mud/````) and run the following command: ````runghc Mud/Main.hs````
