@@ -9,4 +9,4 @@ To play the game on a Mac:
 
 2. Open Terminal, navigate to the project root directory and run the following command: ````./runmefirst.sh````
 
-3. Navigate to the parent of the ````Mud```` folder and run the following command: ````runghc Mud/Main.hs````
+3. Run the following command: ````runghc Mud/Main.hs````
