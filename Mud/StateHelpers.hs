@@ -7,7 +7,7 @@ import Mud.DataTypes
 import Mud.Ids (deadEnd)
 
 import Control.Lens (at)
-import Control.Lens.Operators ((^.))
+import Control.Lens.Operators ((^.), (?=))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (isDigit)
@@ -197,6 +197,12 @@ getInv :: Id -> StateT WorldState IO Inv
 getInv i = do
     ws <- get
     return (fromJust $ ws^.invTbl.at i)
+
+
+addToInv :: Inv -> Id -> StateT WorldState IO ()
+addToInv is to = do
+    toIs <- getInv to
+    invTbl.at to ?= toIs ++ is
 
 
 getPlaInv :: StateT WorldState IO Inv

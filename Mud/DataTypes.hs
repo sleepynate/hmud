@@ -109,7 +109,7 @@ data Pla = Pla { _rmId :: Id
 
 -----
 
-data Type = ObjType | ConType | WpnType | ArmType | MobType deriving (Eq, Show)
+data Type = ObjType | ConType | WpnType | ArmType | MobType | RmType deriving (Eq, Show)
 
 -----
 

@@ -71,6 +71,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
           , Cmd { cmdName = "remove", action = remove, cmdDesc = "Remove items from a container." }
+          , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
 
 
@@ -79,8 +80,10 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = welcomeMsg >> let ws = execState createWorld initWS
-                     in evalStateT game ws
+main = do
+    welcomeMsg
+    ws <- execStateT createWorld initWS
+    evalStateT game ws
 
 
 welcomeMsg :: IO ()
@@ -229,7 +232,7 @@ getAction [r] = do
     mes <- procGetEntResRm r res
     case mes of Nothing -> return ()
                 Just es -> let eis = getEntIds es
-                           in moveEnts eis i 0
+                           in moveInv eis i 0
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
@@ -243,7 +246,7 @@ dropAction [r] = do
     mes <- procGetEntResPlaInv r res
     case mes of Nothing -> return ()
                 Just es -> let eis = getEntIds es
-                           in moveEnts eis 0 i
+                           in moveInv eis 0 i
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
 
@@ -312,8 +315,8 @@ putHelper ci (r:rs) = do
                       then do
                           e <- getEnt ci
                           lift . T.putStrLn $ "You can't put the " <> (e^.sing) <> " inside itself."
-                          moveEnts (filter (/= ci) is) 0 ci >> putHelper ci rs
-                      else moveEnts is 0 ci >> putHelper ci rs
+                          moveInv (filter (/= ci) is) 0 ci >> putHelper ci rs
+                      else moveInv is 0 ci >> putHelper ci rs
 
 
 
@@ -328,14 +331,19 @@ remHelper ci (r:rs) = do
           res <- getEntsInInvByName r fromIs
           mes <- procGetEntResCon (e^.sing) r res
           case mes of Nothing -> remHelper ci rs
-                      Just es -> moveEnts (getEntIds es) ci 0 >> remHelper ci rs
+                      Just es -> moveInv (getEntIds es) ci 0 >> remHelper ci rs
 
 
-moveEnts :: Inv -> Id -> Id -> StateT WorldState IO ()
-moveEnts [] _ _ = return ()
-moveEnts eis from to = do
-    fromIs <- getInv from
-    invTbl.at from ?= (deleteAllInList eis fromIs)
-    toIs <- getInv to
-    invTbl.at to ?= (toIs ++ eis)
+moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
+moveInv [] _ _ = return ()
+moveInv is from to = do
+    fromIs <- getInv from -- TODO: Consider making a "remFromInv" state hepler function.
+    invTbl.at from ?= (deleteAllInList is fromIs)
+    addToInv is to
     lift . T.putStrLn $ "Ok."
+
+
+okapi :: Action
+okapi _ = do
+    i <- mkOkapi
+    lift . T.putStrLn $ "Made okapi with id " <> showText i <> "."
