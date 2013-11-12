@@ -10,7 +10,19 @@ import Control.Lens (at, to)
 import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (when)
 import Control.Monad.Trans.State
+import Data.List ((\\), sort)
 import qualified Data.IntMap as M
+
+
+getUnusedId :: State WorldState Id
+getUnusedId = do
+    ws <- get
+    let ks = ws^.entTbl.to M.keys
+    return $ findAvailKey ks
+
+
+findAvailKey :: [Int] -> Int
+findAvailKey xs = head $ [0..] \\ (sort xs)
 
 
 ensureSafeId :: Id -> State WorldState ()

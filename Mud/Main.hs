@@ -34,8 +34,8 @@ nl  = '\n'
 tab = '\t'
 
 
-newLine :: StateT WorldState IO ()
-newLine = lift . putChar $ nl
+newLine :: IO ()
+newLine = putChar $ nl
 
 
 quote :: T.Text -> T.Text
@@ -107,7 +107,7 @@ dispatch (cn, rest) = case findAction cn of Nothing -> what >> next -- Haha.
                                             Just a  -> a rest >> next
   where
     what = lift . T.putStrLn $ "?"
-    next = newLine >> game
+    next = lift newLine >> game
 
 
 findAction :: CmdName -> Maybe Action
@@ -137,7 +137,7 @@ go dir rs   = goDispatcher (dir : rs)
 
 goDispatcher :: Action
 goDispatcher [r]    = void . tryMove $ r
-goDispatcher (r:rs) = tryMove r >> newLine >> goDispatcher rs
+goDispatcher (r:rs) = tryMove r >> lift newLine >> goDispatcher rs
 goDispatcher _ = undefined
 
 
