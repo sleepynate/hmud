@@ -3,7 +3,7 @@ hmud
 
 A MUD in Haskell.
 
-To play the game:
+To play the game on a Mac:
 
 1. Download the Haskell Platform.
 
