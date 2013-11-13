@@ -2,6 +2,7 @@
 
 module Mud.Ids where
 
+
 deadEnd = -1 :: Int
 
 iPla = 0 :: Int

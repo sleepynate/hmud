@@ -9,8 +9,7 @@ import Mud.DataTypes
 import Mud.StateHelpers
 import Mud.TheWorld
 
-import Control.Lens (at)
-import Control.Lens.Operators ((^.), (.=), (?=))
+import Control.Lens.Operators ((^.), (.=))
 import Control.Monad (void, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
@@ -232,7 +231,7 @@ getAction [r] = do
     mes <- procGetEntResRm r res
     case mes of Nothing -> return ()
                 Just es -> let eis = getEntIds es
-                           in moveInv eis i 0
+                           in moveInv eis i 0 >> (lift . T.putStrLn $ "Ok.")
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
@@ -246,7 +245,7 @@ dropAction [r] = do
     mes <- procGetEntResPlaInv r res
     case mes of Nothing -> return ()
                 Just es -> let eis = getEntIds es
-                           in moveInv eis 0 i
+                           in moveInv eis 0 i >> (lift . T.putStrLn $ "Ok.")
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
 
@@ -315,9 +314,10 @@ putHelper ci (r:rs) = do
                       then do
                           e <- getEnt ci
                           lift . T.putStrLn $ "You can't put the " <> (e^.sing) <> " inside itself."
-                          moveInv (filter (/= ci) is) 0 ci >> putHelper ci rs
-                      else moveInv is 0 ci >> putHelper ci rs
-
+                          let is' = filter (/= ci) is
+                          case length is' of 0 -> putHelper ci rs
+                                             _ -> moveInv is' 0 ci >> (lift . T.putStrLn $ "Ok.") >> putHelper ci rs
+                      else moveInv is 0 ci >> (lift . T.putStrLn $ "Ok.") >> putHelper ci rs
 
 
 remHelper :: Id -> Rest -> StateT WorldState IO ()
@@ -331,16 +331,7 @@ remHelper ci (r:rs) = do
           res <- getEntsInInvByName r fromIs
           mes <- procGetEntResCon (e^.sing) r res
           case mes of Nothing -> remHelper ci rs
-                      Just es -> moveInv (getEntIds es) ci 0 >> remHelper ci rs
-
-
-moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
-moveInv [] _ _ = return ()
-moveInv is from to = do
-    fromIs <- getInv from -- TODO: Consider making a "remFromInv" state hepler function.
-    invTbl.at from ?= (deleteAllInList is fromIs)
-    addToInv is to
-    lift . T.putStrLn $ "Ok."
+                      Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
 
 
 okapi :: Action

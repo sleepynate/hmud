@@ -166,24 +166,26 @@ procGetEntResRm r res = case res of
 
 
 procGetEntResPlaInv :: T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
-procGetEntResPlaInv r res = case res of Sorry                   -> lift $ T.putStrLn ("You don't have " <> aOrAn r <> ".") >> return Nothing
-                                        (Mult n Nothing)        -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
-                                        (Mult _ (Just es))      -> return (Just es)
-                                        (Indexed _ n (Left "")) -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
-                                        (Indexed x _ (Left p))  -> lift $ T.putStrLn ("You don't have " <> showText x <> " " <> p <> ".") >> return Nothing
-                                        (Indexed _ _ (Right e)) -> return (Just [e])
+procGetEntResPlaInv r res = case res of
+  Sorry                   -> lift $ T.putStrLn ("You don't have " <> aOrAn r <> ".") >> return Nothing
+  (Mult n Nothing)        -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
+  (Mult _ (Just es))      -> return (Just es)
+  (Indexed _ n (Left "")) -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
+  (Indexed x _ (Left p))  -> lift $ T.putStrLn ("You don't have " <> showText x <> " " <> p <> ".") >> return Nothing
+  (Indexed _ _ (Right e)) -> return (Just [e])
 
 
 type ConName = T.Text
 
 
 procGetEntResCon :: ConName -> T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
-procGetEntResCon cn r res = case res of Sorry                   -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> aOrAn r <> ".") >> return Nothing
-                                        (Mult n Nothing)        -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
-                                        (Mult _ (Just es))      -> return (Just es)
-                                        (Indexed _ n (Left "")) -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
-                                        (Indexed x _ (Left p))  -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> showText x <> " " <> p <> ".") >> return Nothing
-                                        (Indexed _ _ (Right e)) -> return (Just [e])
+procGetEntResCon cn r res = case res of
+  Sorry                   -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> aOrAn r <> ".") >> return Nothing
+  (Mult n Nothing)        -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
+  (Mult _ (Just es))      -> return (Just es)
+  (Indexed _ n (Left "")) -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
+  (Indexed x _ (Left p))  -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> showText x <> " " <> p <> ".") >> return Nothing
+  (Indexed _ _ (Right e)) -> return (Just [e])
 
 
 getEntType :: Ent -> StateT WorldState IO Type
@@ -203,6 +205,19 @@ addToInv :: Inv -> Id -> StateT WorldState IO ()
 addToInv is to = do
     toIs <- getInv to
     invTbl.at to ?= toIs ++ is
+
+
+remFromInv :: Inv -> Id -> StateT WorldState IO ()
+remFromInv is from = do
+    fromIs <- getInv from
+    invTbl.at from ?= (deleteAllInList is fromIs)
+
+
+moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
+moveInv [] _ _ = return ()
+moveInv is from to = do
+    remFromInv is from
+    addToInv is to
 
 
 getPlaInv :: StateT WorldState IO Inv
