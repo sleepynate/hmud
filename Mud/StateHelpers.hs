@@ -8,6 +8,7 @@ import Mud.Ids (deadEnd)
 
 import Control.Lens (at)
 import Control.Lens.Operators ((^.), (?=))
+import Control.Monad (liftM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (isDigit)
@@ -107,9 +108,7 @@ indexChar  = '.'
 
 getEntsInInvByName :: T.Text -> Inv -> StateT WorldState IO GetEntResult
 getEntsInInvByName searchName is
-  | searchName == ([allChar]^.packed) = do
-      es <- getEntsInInv is
-      return (Mult searchName . Just $ es)
+  | searchName == ([allChar]^.packed) = liftM (Mult searchName . Just) $ getEntsInInv is
   | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
   | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
                                       noInt = case decimal noText of Right (i, _) -> i
@@ -133,9 +132,7 @@ getMultEnts a n is
   | otherwise = do
     ens <- getEntNamesInInv is
     case findAbbrev n ens of Nothing -> return (Mult n Nothing)
-                             Just fullName -> do
-                                 es <- getEntsInInv is
-                                 return (Mult n . Just . findMatchingEnts fullName $ es)
+                             Just fullName -> liftM (Mult n . Just . findMatchingEnts fullName) $ getEntsInInv is
   where
     findMatchingEnts fn = take a . filter (\e -> e^.name == fn)
 
@@ -215,9 +212,7 @@ remFromInv is from = do
 
 moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
 moveInv [] _ _ = return ()
-moveInv is from to = do
-    remFromInv is from
-    addToInv is to
+moveInv is from to = remFromInv is from >> addToInv is to
 
 
 getPlaInv :: StateT WorldState IO Inv
@@ -245,9 +240,7 @@ getPlaRmInv = do
 
 
 getPlaRmNextRmId :: (Room -> Id) -> StateT WorldState IO (Maybe Id)
-getPlaRmNextRmId dir = do
-    r <- getPlaRm
-    tryId . dir $ r
+getPlaRmNextRmId dir = getPlaRm >>= tryId . dir
   where
     tryId nextId | nextId == deadEnd = return Nothing
                  | otherwise = return (Just nextId)

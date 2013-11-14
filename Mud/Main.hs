@@ -79,10 +79,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = do
-    welcomeMsg
-    ws <- execStateT createWorld initWS
-    evalStateT game ws
+main = welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
 
 
 welcomeMsg :: IO ()
@@ -149,7 +146,7 @@ tryMove dir = let dir' = T.toLower dir
                 Nothing -> lift . T.putStrLn . quote $ dir <> " is not a valid direction."
                 Just f  -> movePla f
   where
-    movePla f =  do
+    movePla f = do
         mi <- getPlaRmNextRmId f
         case mi of Nothing -> lift . T.putStrLn $ "You can't go that way."
                    Just i  -> pla.rmId .= i >> look [""]
@@ -163,13 +160,8 @@ look :: Action
 look [""] = do
     r <- getPlaRm
     lift . T.putStrLn . T.concat $ [r^.name, [nl]^.packed, r^.desc]
-    is <- getPlaRmInv
-    dispRmInv is
-look [r] = do
-    is <- getPlaRmInv
-    res <- getEntsInInvByName r is
-    mes <- procGetEntResRm r res
-    F.forM_ mes . mapM_ $ descEnt
+    getPlaRmInv >>= dispRmInv
+look [r] = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= flip F.forM_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _ = undefined
 
@@ -196,8 +188,7 @@ descEnt e = do
 
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
-    is <- getInv i
-    ens <- getEntBothGramNosInInv is
+    ens <- getInv i >>= getEntBothGramNosInInv
     case ens of [] -> empty
                 _  -> header >> (mapM_ descEntInInv . nub . zip (makeCountList ens) $ ens)
   where
@@ -213,11 +204,7 @@ descEntsInInvForId i = do
 
 inventory :: Action
 inventory [""] = descEntsInInvForId 0
-inventory [r] = do
-    is <- getPlaInv
-    res <- getEntsInInvByName r is
-    mes <- procGetEntResPlaInv r res
-    F.forM_ mes . mapM_ $ descEnt
+inventory [r] = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= flip F.forM_ (mapM_ descEnt)
 inventory (r:rs) = inventory [r] >> inventory rs
 inventory _ = undefined
 
@@ -225,13 +212,11 @@ inventory _ = undefined
 getAction :: Action
 getAction [""] = lift . T.putStrLn $ "What do you want to get?"
 getAction [r] = do
-    i <- getPlaRmId
-    is <- getPlaRmInv
-    res <- getEntsInInvByName r is
-    mes <- procGetEntResRm r res
+    mes <- getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r
     case mes of Nothing -> return ()
-                Just es -> let eis = getEntIds es
-                           in moveInv eis i 0 >> (lift . T.putStrLn $ "Ok.")
+                Just es -> do
+                    i <- getPlaRmId
+                    moveInv (getEntIds es) i 0 >> (lift . T.putStrLn $ "Ok.")
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
@@ -239,13 +224,11 @@ getAction _ = undefined
 dropAction :: Action
 dropAction [""] = lift . T.putStrLn $ "What do you want to drop?"
 dropAction [r] = do
-    i <- getPlaRmId
-    is <- getPlaInv
-    res <- getEntsInInvByName r is
-    mes <- procGetEntResPlaInv r res
+    mes <- getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
     case mes of Nothing -> return ()
-                Just es -> let eis = getEntIds es
-                           in moveInv eis 0 i >> (lift . T.putStrLn $ "Ok.")
+                Just es -> do
+                    i <- getPlaRmId
+                    moveInv (getEntIds es) 0 i >> (lift . T.putStrLn $ "Ok.")
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
 
@@ -271,8 +254,7 @@ rmChar = '-'
 
 putRemDispatcher :: PutOrRem -> Action
 putRemDispatcher por (r:rs) = do
-    let cn = last rs
-    mes <- findCon cn
+    mes <- findCon $ last rs
     case mes of Nothing -> return ()
                 Just es -> if length es /= 1
                              then lift . T.putStrLn $ onlyOneMsg
@@ -284,14 +266,8 @@ putRemDispatcher por (r:rs) = do
                                   else dispatchToHelper (e^.entId)
   where
     findCon cn
-      | T.head cn == rmChar = do
-          ris <- getPlaRmInv
-          resRmInv <- getEntsInInvByName (T.tail cn) ris
-          procGetEntResRm (T.tail cn) resRmInv
-      | otherwise = do
-          pis <- getPlaInv
-          resPlaInv <- getEntsInInvByName cn pis
-          procGetEntResPlaInv cn resPlaInv
+      | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm (T.tail cn)
+      | otherwise = getPlaInv >>= getEntsInInvByName cn >>= procGetEntResPlaInv cn
     onlyOneMsg = case por of Put -> "You can only put things into one container at a time."
                              Rem -> "You can only remove things from one container at a time."
     dispatchToHelper i = case por of Put -> putHelper i restWithoutCon 
@@ -304,9 +280,7 @@ putRemDispatcher _ _ = undefined
 putHelper :: Id -> Rest -> StateT WorldState IO ()
 putHelper _ [] = return ()
 putHelper ci (r:rs) = do
-    pis <- getPlaInv
-    res <- getEntsInInvByName r pis
-    mes <- procGetEntResPlaInv r res
+    mes <- getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
     case mes of Nothing -> putHelper ci rs
                 Just es -> do
                     let is = getEntIds es
@@ -328,8 +302,7 @@ remHelper ci (r:rs) = do
     if null fromIs
       then lift . T.putStrLn $ "The " <> (e^.sing) <> " appears to be empty."
       else do
-          res <- getEntsInInvByName r fromIs
-          mes <- procGetEntResCon (e^.sing) r res
+          mes <- getEntsInInvByName r fromIs >>= procGetEntResCon (e^.sing) r
           case mes of Nothing -> remHelper ci rs
                       Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
 

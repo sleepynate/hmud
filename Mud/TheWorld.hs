@@ -9,10 +9,18 @@ import Mud.StateHelpers
 
 import Control.Lens (at, to)
 import Control.Lens.Operators ((^.), (?=))
-import Control.Monad (when)
+import Control.Monad (liftM, unless, when)
 import Control.Monad.Trans.State
 import Data.List ((\\), sort)
 import qualified Data.IntMap as M
+
+
+getUnusedId :: StateT WorldState IO Id
+getUnusedId = liftM findAvailKey allKeys
+
+
+findAvailKey :: [Int] -> Int
+findAvailKey xs = head $ [0..] \\ (sort xs)
 
 
 allKeys :: StateT WorldState IO Inv
@@ -21,21 +29,10 @@ allKeys = do
     return (ws^.typeTbl.to M.keys)
 
 
-getUnusedId :: StateT WorldState IO Id
-getUnusedId = do
-    ks <- allKeys
-    return (findAvailKey ks)
-
-
-findAvailKey :: [Int] -> Int
-findAvailKey xs = head $ [0..] \\ (sort xs)
-
-
 ensureSafeId :: Id -> StateT WorldState IO ()
 ensureSafeId i = do
     ks <- allKeys
-    case length ks of 0 -> return ()
-                      _ -> when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
+    unless (null ks) $ when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
 
 
 putObj :: Id -> Ent -> Obj -> StateT WorldState IO ()
@@ -87,8 +84,8 @@ putRm :: Id -> Inv -> Room -> StateT WorldState IO ()
 putRm i xs r = do
     ensureSafeId i
     typeTbl.at i ?= RmType
-    invTbl.at i ?= xs
-    rmTbl.at  i ?= r
+    invTbl.at i  ?= xs
+    rmTbl.at  i  ?= r
 
 
 -----
