@@ -58,6 +58,7 @@ data Cmd = Cmd { cmdName :: CmdName
 cmdList :: [Cmd]
 cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "?", action = \_ -> lift help, cmdDesc = "Display help." }
+          , Cmd { cmdName = "what", action = what, cmdDesc = "Determine what an abbreviation may refer to." }
           , Cmd { cmdName = "n", action = go "n", cmdDesc = "Go north." }
           , Cmd { cmdName = "s", action = go "s", cmdDesc = "Go south." }
           , Cmd { cmdName = "e", action = go "e", cmdDesc = "Go east." }
@@ -102,10 +103,10 @@ parseInp = splitUp . T.words
 
 
 dispatch :: Input -> StateT WorldState IO ()
-dispatch (cn, rest) = case findAction cn of Nothing -> what >> next -- Haha.
+dispatch (cn, rest) = case findAction cn of Nothing -> wtf >> next
                                             Just a  -> a rest >> next
   where
-    what = lift . T.putStrLn $ "?"
+    wtf  = lift . T.putStrLn $ "?"
     next = lift newLine >> game
 
 
@@ -305,6 +306,24 @@ remHelper ci (r:rs) = do
           mes <- getEntsInInvByName r fromIs >>= procGetEntResCon (e^.sing) r
           case mes of Nothing -> remHelper ci rs
                       Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
+
+
+what :: Action
+what [""] = lift . T.putStrLn $ "What abbreviation do you want to look up?"
+what [r] = do
+    case findAbbrev (T.toLower r) (map cmdName cmdList) of Nothing -> lift . T.putStrLn $ quote r <> " doesn't refer to any commands."
+                                                           Just cn -> lift . T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
+    ger <- getPlaInv >>= getEntsInInvByName r
+    case ger of
+      (Mult _ (Just es))      -> (lift . T.putStrLn) (if length es > 1
+                                                        then quote r <> " may refer to " <> (showText . length $ es) <> " " <> makePlurFromBoth (both . head $ es) <> " in your inventory."
+                                                        else quote r <> " may refer to the " <> (head es ^. sing) <> " in your inventory.")
+      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> showText x <> "th " <> (e^.sing) <> " in your inventory."
+      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything in your inventory."
+  where
+    both = getEntBothGramNos
+what (r:rs) = what [r] >> what rs
+what _ = undefined
 
 
 okapi :: Action
