@@ -41,6 +41,18 @@ quote :: T.Text -> T.Text
 quote s = "\"" <> s <> "\""
 
 
+mkOrdinal :: Int -> T.Text
+mkOrdinal 0  = undefined
+mkOrdinal 11 = "11th"
+mkOrdinal 12 = "12th"
+mkOrdinal 13 = "13th"
+mkOrdinal x = let s = showText x
+              in s <> case T.last s of '1' -> "st"
+                                       '2' -> "nd"
+                                       '3' -> "rd"
+                                       _   -> "th"
+
+
 -- ==================================================
 -- Structures relating to user commands:
 
@@ -66,7 +78,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "u", action = go "u", cmdDesc = "Go up." }
           , Cmd { cmdName = "d", action = go "d", cmdDesc = "Go down." }
           , Cmd { cmdName = "look", action = look, cmdDesc = "Look." }
-          , Cmd { cmdName = "inventory", action = inventory, cmdDesc = "Inventory." }
+          , Cmd { cmdName = "inv", action = inventory, cmdDesc = "Inventory." }
           , Cmd { cmdName = "get", action = getAction, cmdDesc = "Pick items up off the ground." }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
@@ -308,22 +320,47 @@ remHelper ci (r:rs) = do
                       Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
 
 
+data PlaOrRm = PlaInv | RmInv deriving Eq
+
+
 what :: Action
 what [""] = lift . T.putStrLn $ "What abbreviation do you want to look up?"
-what [r] = do
-    case findAbbrev (T.toLower r) (map cmdName cmdList) of Nothing -> lift . T.putStrLn $ quote r <> " doesn't refer to any commands."
-                                                           Just cn -> lift . T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
-    ger <- getPlaInv >>= getEntsInInvByName r
-    case ger of
-      (Mult _ (Just es))      -> (lift . T.putStrLn) (if length es > 1
-                                                        then quote r <> " may refer to " <> (showText . length $ es) <> " " <> makePlurFromBoth (both . head $ es) <> " in your inventory."
-                                                        else quote r <> " may refer to the " <> (head es ^. sing) <> " in your inventory.")
-      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> showText x <> "th " <> (e^.sing) <> " in your inventory."
-      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything in your inventory."
-  where
-    both = getEntBothGramNos
-what (r:rs) = what [r] >> what rs
+what [r] = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv RmInv r
+what (r:rs) = what [r] >> lift newLine >> what rs
 what _ = undefined
+
+
+whatCmd :: T.Text -> IO ()
+whatCmd r = case findAbbrev (T.toLower r) (map cmdName cmdList) of
+  Nothing -> T.putStrLn $ quote r <> " doesn't refer to any commands."
+  Just cn -> T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
+
+
+whatInv :: PlaOrRm -> T.Text -> StateT WorldState IO ()
+whatInv por r = do
+    is <- if por == PlaInv then getPlaInv else getPlaRmInv
+    ger <- getEntsInInvByName r is
+    case ger of
+      (Mult n (Just es)) | n == acp -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> target
+                         | otherwise ->
+                           let e = head es
+                               len = length es
+                           in if len > 1
+                             then lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> (makePlurFromBoth . getEntBothGramNos $ e) <> " " <> target
+                             else do
+                                ens <- getEntNamesInInv is
+                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> (e^.sing) <> " " <> target
+      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> (e^.sing) <> " " <> target
+      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
+  where
+    acp = [allChar]^.packed
+    target = if por == PlaInv then "in your inventory." else "in this room."
+
+
+checkFirst :: Ent -> [T.Text] -> T.Text
+checkFirst e ens = if length matches > 1 then "first " else ""
+  where
+    matches = filter (== e^.name) ens
 
 
 okapi :: Action

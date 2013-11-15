@@ -29,7 +29,7 @@ import qualified Data.Text.IO as T
 
 
 showText :: (Show a) => a -> T.Text
-showText a = show a ^.packed
+showText = T.pack . show
 
 
 aOrAn :: T.Text -> T.Text
