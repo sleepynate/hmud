@@ -12,7 +12,7 @@ import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (liftM, unless, when)
 import Control.Monad.Trans.State
 import Data.List ((\\), sort)
-import qualified Data.IntMap as M
+import qualified Data.IntMap as IM
 
 
 getUnusedId :: StateT WorldState IO Id
@@ -26,7 +26,7 @@ findAvailKey xs = head $ [0..] \\ (sort xs)
 allKeys :: StateT WorldState IO Inv
 allKeys = do
     ws <- get
-    return (ws^.typeTbl.to M.keys)
+    return (ws^.typeTbl.to IM.keys)
 
 
 ensureSafeId :: Id -> StateT WorldState IO ()
@@ -92,7 +92,7 @@ putRm i xs r = do
 
 
 initWS :: WorldState
-initWS = WorldState initPla (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList []) (M.fromList [])
+initWS = WorldState initPla (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList [])
 
 
 initPla :: Pla
@@ -106,17 +106,17 @@ createWorld = do
     putRm  iHill [iGP1] (Room "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
     putRm  iCliff [iElephant, iBag2] (Room "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
     
-    putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1)
-    putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1)
+    putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1 Unequipable)
+    putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1 Unequipable)
     
-    putObj iGP1 (Ent iGP1 "guinea" "guinea pig" "" "The yellow guinea pig is charmingly cute." 0) (Obj 1 1)
-    putObj iGP2 (Ent iGP2 "guinea" "guinea pig" "" "The green guinea pig is charmingly cute." 0) (Obj 1 1)
-    putObj iGP3 (Ent iGP3 "guinea" "guinea pig" "" "The blue guinea pig is charmingly cute." 0) (Obj 1 1)
+    putObj iGP1 (Ent iGP1 "guinea" "guinea pig" "" "The yellow guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
+    putObj iGP2 (Ent iGP2 "guinea" "guinea pig" "" "The green guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
+    putObj iGP3 (Ent iGP3 "guinea" "guinea pig" "" "The blue guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
 
-    putObj iElephant (Ent iElephant "elephant" "elephant" "" "The elephant is huge and smells terrible." 0) (Obj 1 1)
+    putObj iElephant (Ent iElephant "elephant" "elephant" "" "The elephant is huge and smells terrible." 0) (Obj 1 1 Unequipable)
 
-    putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1) [iGP2, iGP3] (Con 10)
-    putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1) [iKewpie2] (Con 10)
+    putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1 Unequipable) [iGP2, iGP3] (Con 10)
+    putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1 Unequipable) [iKewpie2] (Con 10)
 
 
 -----

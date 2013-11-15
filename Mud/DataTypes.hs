@@ -5,7 +5,8 @@
 module Mud.DataTypes where
 
 import Control.Lens (Lens', lens, makeLenses)
-import qualified Data.IntMap as M
+import qualified Data.IntMap as IM
+import qualified Data.Map as M
 import qualified Data.Text as T
 
 -----
@@ -17,6 +18,8 @@ class HasFlags a where
   flags :: Lens' a Int
 
 -----
+
+type Id = Int
 
 type Sing = T.Text
 type Plur = T.Text
@@ -37,10 +40,26 @@ instance HasFlags Ent where
 
 -----
 
+data ObjType = Headwear
+             | Necklace
+             | TorsoArm
+             | Bracelet
+             | OneHanded
+             | TwoHanded
+             | LowBodyArm
+             | Footwear
+             | FullBodyArm
+             | UpBodyCloth
+             | LowBodyCloth
+             | Unequipable deriving (Eq, Show)
+
+-----
+
 -- Has an entity.
 
-data Obj = Obj { _weight :: Int
-               , _vol    :: Int } deriving (Eq, Show)
+data Obj = Obj { _weight  :: Int
+               , _vol     :: Int
+               , _objType :: ObjType } deriving (Eq, Show)
 
 -----
 
@@ -71,7 +90,7 @@ data Sex = Male | Female | NA deriving (Eq, Show)
 
 -----
 
--- Has an entity and an inventory.
+-- Has an entity and an inventory and equipment.
 
 data Mob = Mob { _sex               :: Sex
                , _st, _dx, _iq, _ht :: Int
@@ -80,7 +99,21 @@ data Mob = Mob { _sex               :: Sex
 
 -----
 
-data Race = Human | Elf | Dwarf | Halfling | Nymph | Felinoid | Lagomorph | Vulpenoid deriving (Eq, Show)
+data Equip = Head
+           | Neck
+           | Torso
+           | RWrist
+           | LWrist
+           | RHand
+           | LHand
+           | BothHands
+           | LowBody
+           | Feet
+           | FullBody
+           | ClothUp
+           | ClothLow deriving (Eq, Show)
+
+type EqMap = M.Map Equip Id
 
 -----
 
@@ -100,9 +133,11 @@ instance HasFlags Room where
 
 -----
 
--- Has a mob (and an entity and an inventory).
+data Race = Human | Elf | Dwarf | Halfling | Nymph | Felinoid | Lagomorph | Vulpenoid deriving (Eq, Show)
 
-type Id = Int
+-----
+
+-- Has a mob (and an entity and an inventory).
 
 data Pla = Pla { _rmId :: Id
                , _race :: Race } deriving (Eq, Show)
@@ -115,15 +150,16 @@ data Type = ObjType | ConType | WpnType | ArmType | MobType | RmType deriving (E
 
 type Inv = [Id]
 
-type TypeTbl = M.IntMap Type
-type EntTbl  = M.IntMap Ent
-type ObjTbl  = M.IntMap Obj
-type InvTbl  = M.IntMap Inv
-type ConTbl  = M.IntMap Con
-type WpnTbl  = M.IntMap Wpn
-type ArmTbl  = M.IntMap Arm
-type MobTbl  = M.IntMap Mob
-type RmTbl   = M.IntMap Room
+type TypeTbl = IM.IntMap Type
+type EntTbl  = IM.IntMap Ent
+type ObjTbl  = IM.IntMap Obj
+type InvTbl  = IM.IntMap Inv
+type ConTbl  = IM.IntMap Con
+type WpnTbl  = IM.IntMap Wpn
+type ArmTbl  = IM.IntMap Arm
+type MobTbl  = IM.IntMap Mob
+type EqTable = IM.IntMap EqMap
+type RmTbl   = IM.IntMap Room
 
 data WorldState = WorldState { _pla     :: Pla
                              , _typeTbl :: TypeTbl
@@ -134,6 +170,7 @@ data WorldState = WorldState { _pla     :: Pla
                              , _wpnTbl  :: WpnTbl
                              , _armTbl  :: ArmTbl
                              , _mobTbl  :: MobTbl
+                             , _eqTable :: EqTable
                              , _rmTbl   :: RmTbl  }
 
 -----
