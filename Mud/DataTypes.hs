@@ -40,26 +40,26 @@ instance HasFlags Ent where
 
 -----
 
-data ObjType = Headwear
-             | Necklace
-             | TorsoArm
-             | Bracelet
-             | OneHanded
-             | TwoHanded
-             | LowBodyArm
-             | Footwear
-             | FullBodyArm
-             | UpBodyCloth
-             | LowBodyCloth
-             | Unequipable deriving (Eq, Show)
-
------
-
 -- Has an entity.
 
 data Obj = Obj { _weight  :: Int
-               , _vol     :: Int
-               , _objType :: ObjType } deriving (Eq, Show)
+               , _vol     :: Int } deriving (Eq, Show)
+
+-----
+
+-- Has an object (and an entity).
+
+data Cloth = Cloth ClothSub deriving (Eq, Show)
+
+data ClothSub = HeadC
+              | NeckC
+              | WristC
+              | FingerC
+              | FeetC
+              | BackC
+              | UpBodyC
+              | LowBodyC
+              | FullBodyC deriving (Eq, Show)
 
 -----
 
@@ -73,8 +73,12 @@ data Con = Con Cap deriving (Eq, Show)
 
 -- Has an object (and an entity).
 
-data Wpn = Wpn { _minDmg :: Int
+data Wpn = Wpn { _wpnSub :: WpnSub
+               , _minDmg :: Int
                , _maxDmg :: Int } deriving (Eq, Show)
+
+data WpnSub = OneHanded
+            | TwoHanded deriving (Eq, Show)
 
 -----
 
@@ -82,11 +86,13 @@ data Wpn = Wpn { _minDmg :: Int
 
 type AC = Int
 
-data Arm = Arm AC deriving (Eq, Show)
+data Arm = Arm { _armSub :: ArmSub
+               , _ac     :: AC } deriving (Eq, Show)
 
------
-
-data Sex = Male | Female | NA deriving (Eq, Show)
+data ArmSub = HeadA
+            | UpBodyA
+            | LowBodyA
+            | FullBodyA deriving (Eq, Show)
 
 -----
 
@@ -97,71 +103,93 @@ data Mob = Mob { _sex               :: Sex
                , _hp, _fp           :: Int
                , _xp                :: Int } deriving (Eq, Show)
 
------
-
-data Equip = Head
-           | Neck
-           | Torso
-           | RWrist
-           | LWrist
-           | RHand
-           | LHand
-           | BothHands
-           | LowBody
-           | Feet
-           | FullBody
-           | ClothUp
-           | ClothLow deriving (Eq, Show)
-
-type EqMap = M.Map Equip Id
+data Sex = Male
+         | Female
+         | NA deriving (Eq, Show)
 
 -----
 
--- Has an inventory.
-
-data Room = Room { _rmName  :: T.Text
-                 , _rmDesc  :: T.Text
-                 , _rmFlags :: Int
-                 , north, south, east, west, up, down :: Id } deriving (Eq, Show)
-
-instance HasNameDesc Room where
-  name = lens _rmName (\e v -> e { _rmName = v })
-  desc = lens _rmDesc (\e v -> e { _rmDesc = v })
-
-instance HasFlags Room where
-  flags = lens _rmFlags (\e v -> e { _rmFlags = v })
-
------
-
-data Race = Human | Elf | Dwarf | Halfling | Nymph | Felinoid | Lagomorph | Vulpenoid deriving (Eq, Show)
-
------
-
--- Has a mob (and an entity and an inventory).
+-- Has a mob (and an entity and an inventory and equipment).
 
 data Pla = Pla { _rmId :: Id
                , _race :: Race } deriving (Eq, Show)
 
------
+data Race = Human
+          | Elf
+          | Dwarf
+          | Halfling
+          | Nymph
+          | Felinoid
+          | Lagomorph
+          | Vulpenoid deriving (Eq, Show)
 
-data Type = ObjType | ConType | WpnType | ArmType | MobType | RmType deriving (Eq, Show)
+----
+
+-- Has an inventory.
+
+data Rm = Rm { _rmName  :: T.Text
+             , _rmDesc  :: T.Text
+             , _rmFlags :: Int
+             , north, south, east, west, up, down :: Id } deriving (Eq, Show)
+
+instance HasNameDesc Rm where
+  name = lens _rmName (\e v -> e { _rmName = v })
+  desc = lens _rmDesc (\e v -> e { _rmDesc = v })
+
+instance HasFlags Rm where
+  flags = lens _rmFlags (\e v -> e { _rmFlags = v })
 
 -----
 
 type Inv = [Id]
 
-type TypeTbl = IM.IntMap Type
-type EntTbl  = IM.IntMap Ent
-type ObjTbl  = IM.IntMap Obj
-type InvTbl  = IM.IntMap Inv
-type ConTbl  = IM.IntMap Con
-type WpnTbl  = IM.IntMap Wpn
-type ArmTbl  = IM.IntMap Arm
-type MobTbl  = IM.IntMap Mob
-type EqTable = IM.IntMap EqMap
-type RmTbl   = IM.IntMap Room
+----
 
-data WorldState = WorldState { _pla     :: Pla
+type EqMap = M.Map Slot Id
+
+data Slot = HeadS -- TODO Rearrange?
+          | NeckS
+          | RWristS
+          | LWristS
+          | FingersS
+          | RHandS
+          | LHandS
+          | BothHandsS
+          | FeetS
+          | BackS
+          | UpBodyCS
+          | LowBodyCS
+          | FullBodyCS
+          | UpBodyAS
+          | LowBodyAS
+          | FullBodyAS deriving (Eq, Show)
+
+-----
+
+data Type = ObjType -- TODO Rearrange?
+          | ClothType
+          | ConType
+          | WpnType
+          | ArmType
+          | MobType
+          | PlaType
+          | RmType  deriving (Eq, Show)
+
+-----
+
+type EntTbl   = IM.IntMap Ent -- TODO Rearrange?
+type ObjTbl   = IM.IntMap Obj
+type ClothTbl = IM.IntMap Cloth
+type ConTbl   = IM.IntMap Con
+type WpnTbl   = IM.IntMap Wpn
+type ArmTbl   = IM.IntMap Arm
+type MobTbl   = IM.IntMap Mob
+type RmTbl    = IM.IntMap Rm
+type InvTbl   = IM.IntMap Inv
+type EqTable  = IM.IntMap EqMap
+type TypeTbl  = IM.IntMap Type
+
+data WorldState = WorldState { _pla     :: Pla -- TODO Rearrange.
                              , _typeTbl :: TypeTbl
                              , _entTbl  :: EntTbl
                              , _objTbl  :: ObjTbl
@@ -171,14 +199,15 @@ data WorldState = WorldState { _pla     :: Pla
                              , _armTbl  :: ArmTbl
                              , _mobTbl  :: MobTbl
                              , _eqTable :: EqTable
-                             , _rmTbl   :: RmTbl  }
+                             , _rmTbl   :: RmTbl }
 
 -----
 
-makeLenses ''Ent
+makeLenses ''Ent -- TODO Rearrange?
 makeLenses ''Obj
 makeLenses ''Wpn
+makeLenses ''Arm
 makeLenses ''Mob
-makeLenses ''Room
 makeLenses ''Pla
+makeLenses ''Rm
 makeLenses ''WorldState
