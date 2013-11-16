@@ -147,7 +147,7 @@ type Inv = [Id]
 
 type EqMap = M.Map Slot Id
 
-data Slot = HeadS -- TODO Rearrange?
+data Slot = HeadS
           | NeckS
           | RWristS
           | LWristS
@@ -166,7 +166,7 @@ data Slot = HeadS -- TODO Rearrange?
 
 -----
 
-data Type = ObjType -- TODO Rearrange?
+data Type = ObjType
           | ClothType
           | ConType
           | WpnType
@@ -177,7 +177,7 @@ data Type = ObjType -- TODO Rearrange?
 
 -----
 
-type EntTbl   = IM.IntMap Ent -- TODO Rearrange?
+type EntTbl   = IM.IntMap Ent
 type ObjTbl   = IM.IntMap Obj
 type ClothTbl = IM.IntMap Cloth
 type ConTbl   = IM.IntMap Con
@@ -189,21 +189,22 @@ type InvTbl   = IM.IntMap Inv
 type EqTable  = IM.IntMap EqMap
 type TypeTbl  = IM.IntMap Type
 
-data WorldState = WorldState { _pla     :: Pla -- TODO Rearrange.
-                             , _typeTbl :: TypeTbl
-                             , _entTbl  :: EntTbl
-                             , _objTbl  :: ObjTbl
-                             , _invTbl  :: InvTbl
-                             , _conTbl  :: ConTbl
-                             , _wpnTbl  :: WpnTbl
-                             , _armTbl  :: ArmTbl
-                             , _mobTbl  :: MobTbl
-                             , _eqTable :: EqTable
-                             , _rmTbl   :: RmTbl }
+data WorldState = WorldState { _entTbl   :: EntTbl
+                             , _objTbl   :: ObjTbl
+                             , _clothTbl :: ClothTbl
+                             , _conTbl   :: ConTbl
+                             , _wpnTbl   :: WpnTbl
+                             , _armTbl   :: ArmTbl
+                             , _mobTbl   :: MobTbl
+                             , _rmTbl    :: RmTbl 
+                             , _invTbl   :: InvTbl
+                             , _eqTable  :: EqTable
+                             , _typeTbl  :: TypeTbl
+                             , _pla      :: Pla }
 
 -----
 
-makeLenses ''Ent -- TODO Rearrange?
+makeLenses ''Ent
 makeLenses ''Obj
 makeLenses ''Wpn
 makeLenses ''Arm

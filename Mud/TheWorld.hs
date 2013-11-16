@@ -15,6 +15,8 @@ import Data.List ((\\), sort)
 import qualified Data.IntMap as IM
 
 
+-- TODO: Revise helper methods for new types.
+
 getUnusedId :: StateT WorldState IO Id
 getUnusedId = liftM findAvailKey allKeys
 
@@ -80,7 +82,7 @@ putMob i e xs m = do
     mobTbl.at i  ?= m
 
 
-putRm :: Id -> Inv -> Room -> StateT WorldState IO ()
+putRm :: Id -> Inv -> Rm -> StateT WorldState IO ()
 putRm i xs r = do
     ensureSafeId i
     typeTbl.at i ?= RmType
@@ -92,7 +94,19 @@ putRm i xs r = do
 
 
 initWS :: WorldState
-initWS = WorldState initPla (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList []) (IM.fromList [])
+initWS = WorldState
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  (IM.fromList [])
+  initPla
 
 
 initPla :: Pla
@@ -103,20 +117,20 @@ initPla = Pla { _rmId = iHill
 createWorld :: StateT WorldState IO ()
 createWorld = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1] (Mob Male 10 10 10 10 10 10 0)
-    putRm  iHill [iGP1] (Room "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
-    putRm  iCliff [iElephant, iBag2] (Room "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
+    putRm  iHill [iGP1] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
+    putRm  iCliff [iElephant, iBag2] (Rm "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
     
-    putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1 Unequipable)
-    putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1 Unequipable)
+    putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1)
+    putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1)
     
-    putObj iGP1 (Ent iGP1 "guinea" "guinea pig" "" "The yellow guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
-    putObj iGP2 (Ent iGP2 "guinea" "guinea pig" "" "The green guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
-    putObj iGP3 (Ent iGP3 "guinea" "guinea pig" "" "The blue guinea pig is charmingly cute." 0) (Obj 1 1 Unequipable)
+    putObj iGP1 (Ent iGP1 "guinea" "guinea pig" "" "The yellow guinea pig is charmingly cute." 0) (Obj 1 1)
+    putObj iGP2 (Ent iGP2 "guinea" "guinea pig" "" "The green guinea pig is charmingly cute." 0) (Obj 1 1)
+    putObj iGP3 (Ent iGP3 "guinea" "guinea pig" "" "The blue guinea pig is charmingly cute." 0) (Obj 1 1)
 
-    putObj iElephant (Ent iElephant "elephant" "elephant" "" "The elephant is huge and smells terrible." 0) (Obj 1 1 Unequipable)
+    putObj iElephant (Ent iElephant "elephant" "elephant" "" "The elephant is huge and smells terrible." 0) (Obj 1 1)
 
-    putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1 Unequipable) [iGP2, iGP3] (Con 10)
-    putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1 Unequipable) [iKewpie2] (Con 10)
+    putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1) [iGP2, iGP3] (Con 10)
+    putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1) [iKewpie2] (Con 10)
 
 
 -----

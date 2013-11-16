@@ -225,7 +225,7 @@ getPlaRmId = do
     return (ws^.pla.rmId)
 
 
-getPlaRm :: StateT WorldState IO Room
+getPlaRm :: StateT WorldState IO Rm
 getPlaRm = do
     ws <- get
     i <- getPlaRmId
@@ -239,7 +239,7 @@ getPlaRmInv = do
     return (fromJust $ ws^.invTbl.at i)
 
 
-getPlaRmNextRmId :: (Room -> Id) -> StateT WorldState IO (Maybe Id)
+getPlaRmNextRmId :: (Rm -> Id) -> StateT WorldState IO (Maybe Id)
 getPlaRmNextRmId dir = getPlaRm >>= tryId . dir
   where
     tryId nextId | nextId == deadEnd = return Nothing
