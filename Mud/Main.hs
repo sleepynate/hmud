@@ -50,15 +50,15 @@ tab = '\t'
 
 
 newLine :: IO ()
-newLine = putChar $ nl
+newLine = putChar nl
 
 
 ok :: IO ()
-ok = T.putStrLn $ "Ok."
+ok = T.putStrLn "Ok."
 
 
 quote :: T.Text -> T.Text
-quote t = "\"" <> t <> "\""
+quote t = T.concat ["\"", t, "\""]
 
 
 unquote :: T.Text -> T.Text
@@ -76,11 +76,11 @@ mkOrdinal 0  = undefined
 mkOrdinal 11 = "11th"
 mkOrdinal 12 = "12th"
 mkOrdinal 13 = "13th"
-mkOrdinal x = let t = showText x
-              in t <> case T.last t of '1' -> "st"
-                                       '2' -> "nd"
-                                       '3' -> "rd"
-                                       _   -> "th"
+mkOrdinal x  = let t = showText x
+               in t <> case T.last t of '1' -> "st"
+                                        '2' -> "nd"
+                                        '3' -> "rd"
+                                        _   -> "th"
 
 
 -- ==================================================
@@ -156,8 +156,8 @@ parseInp = splitUp . T.words
 dispatch :: Input -> StateT WorldState IO ()
 dispatch (cn, rest) = maybe (wtf >> next) act $ findAction cn
   where
-    wtf = lift . T.putStrLn $ "?"
-    next = lift newLine >> game
+    wtf   = lift . T.putStrLn $ "?"
+    next  = lift newLine >> game
     act a = a rest >> next
 
 
@@ -180,8 +180,8 @@ dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTx
 
 
 help :: Action
-help [""] = lift . dumpFile $ helpDir ++ "root"
-help [r] = lift . dispHelpTopicByName $ r
+help [""]   = lift . dumpFile $ helpDir ++ "root"
+help [r]    = lift . dispHelpTopicByName $ r
 help (r:rs) = help [r] >> lift newLine >> help rs
 help _ = undefined
 
@@ -206,7 +206,7 @@ go dir rs   = goDispatcher (dir : rs)
 
 
 goDispatcher :: Action
-goDispatcher [r]    = void . tryMove $ r
+goDispatcher [r]    = tryMove r
 goDispatcher (r:rs) = tryMove r >> lift newLine >> goDispatcher rs
 goDispatcher _ = undefined
 
@@ -215,10 +215,10 @@ tryMove :: T.Text -> StateT WorldState IO ()
 tryMove dir = let dir' = T.toLower dir
               in maybe sorry movePla $ M.lookup dir' dirMap
   where
-    sorry = lift . T.putStrLn . quote $ dir <> " is not a valid direction."
+    sorry     = lift . T.putStrLn . quote $ dir <> " is not a valid direction."
     movePla f = getPlaRmNextRmId f >>= maybe heDont moveHelper
       where
-        heDont = lift . T.putStrLn $ "You can't go that way."
+        heDont       = lift . T.putStrLn $ "You can't go that way."
         moveHelper i = pla.rmId .= i >> look [""]
 
 
@@ -231,7 +231,7 @@ look [""] = do
     r <- getPlaRm
     lift . T.putStrLn . T.concat $ [r^.name, [nl]^.packed, r^.desc]
     getPlaRmInv >>= dispRmInv
-look [r] = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= F.mapM_ (mapM_ descEnt)
+look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= F.mapM_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _ = undefined
 
@@ -275,15 +275,15 @@ descEntsInInvForId i = do
 
 
 inv :: Action
-inv [""] = descEntsInInvForId 0
-inv [r] = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+inv [""]   = descEntsInInvForId 0
+inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
 inv _ = undefined
 
 
 equip :: Action
-equip [""] = descEq 0
-equip [r] = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+equip [""]   = descEq 0
+equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
 equip (r:rs) = equip [r] >> equip rs
 equip _ = undefined
 
@@ -297,10 +297,10 @@ descEq i = do
     getSlotName s = fromJust . M.lookup s $ slotNamesMap
     mkEqDescList = mapM descEqHelper
     empty
-      | i == 0 = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
+      | i == 0    = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
       | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " doesn't have anything readied." }
     header
-      | i == 0 = lift . T.putStrLn $ "You have readied the following equipment:"
+      | i == 0    = lift . T.putStrLn $ "You have readied the following equipment:"
       | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " has readied the following equipment:" }
 
 
@@ -312,24 +312,22 @@ descEqHelper (sn, i) = do
 
 getAction :: Action
 getAction [""] = lift . T.putStrLn $ "What do you want to get?"
-getAction [r] = do
-    mes <- getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r
-    case mes of Nothing -> return ()
-                Just es -> do
-                    i <- getPlaRmId
-                    moveInv (getEntIds es) i 0 >> lift ok
+getAction [r]  = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= maybe (return ()) shuffleInv
+  where
+    shuffleInv es = do
+        i <- getPlaRmId
+        moveInv (getEntIds es) i 0 >> lift ok
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
 
 dropAction :: Action
 dropAction [""] = lift . T.putStrLn $ "What do you want to drop?"
-dropAction [r] = do
-    mes <- getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
-    case mes of Nothing -> return ()
-                Just es -> do
-                    i <- getPlaRmId
-                    moveInv (getEntIds es) 0 i >> lift ok
+dropAction [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= maybe (return ()) shuffleInv
+  where
+    shuffleInv es = do
+        i <- getPlaRmId
+        moveInv (getEntIds es) 0 i >> lift ok
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
 
@@ -369,8 +367,8 @@ putRemDispatcher por (r:rs) = do
     findCon cn
       | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm (T.tail cn)
       | otherwise = getPlaInv >>= getEntsInInvByName cn >>= procGetEntResPlaInv cn
-    onlyOneMsg = case por of Put -> "You can only put things into one container at a time."
-                             Rem -> "You can only remove things from one container at a time."
+    onlyOneMsg         = case por of Put -> "You can only put things into one container at a time."
+                                     Rem -> "You can only remove things from one container at a time."
     dispatchToHelper i = case por of Put -> putHelper i restWithoutCon 
                                      Rem -> remHelper i restWithoutCon
       where
@@ -379,7 +377,7 @@ putRemDispatcher _ _ = undefined
 
 
 putHelper :: Id -> Rest -> StateT WorldState IO ()
-putHelper _ [] = return ()
+putHelper _ []      = return ()
 putHelper ci (r:rs) = do
     mes <- getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
     case mes of Nothing -> next
@@ -399,7 +397,7 @@ putHelper ci (r:rs) = do
 
 
 remHelper :: Id -> Rest -> StateT WorldState IO ()
-remHelper _ [] = return ()
+remHelper _ []      = return ()
 remHelper ci (r:rs) = do
     e <- getEnt ci
     fromIs <- getInv ci
@@ -415,8 +413,8 @@ data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 
 what :: Action
-what [""] = lift . T.putStrLn $ "What abbreviation do you want to look up?"
-what [r] = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
+what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
+what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
 what (r:rs) = what [r] >> lift newLine >> what rs
 what _ = undefined
 
