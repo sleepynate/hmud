@@ -11,18 +11,17 @@ import Control.Lens (at, to)
 import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (liftM, unless, when)
 import Control.Monad.Trans.State
-import Data.List ((\\), sort)
+import Data.List ((\\))
 import qualified Data.IntMap as IM
+import qualified Data.Map as M
 
-
--- TODO: Revise helper methods for new types.
 
 getUnusedId :: StateT WorldState IO Id
 getUnusedId = liftM findAvailKey allKeys
 
 
 findAvailKey :: [Int] -> Int
-findAvailKey xs = head $ [0..] \\ (sort xs)
+findAvailKey xs = head $ [0..] \\ xs
 
 
 allKeys :: StateT WorldState IO Inv
@@ -46,12 +45,12 @@ putObj i e o = do
 
 
 putCon :: Id -> Ent -> Obj -> Inv -> Con -> StateT WorldState IO ()
-putCon i e o xs c = do
+putCon i e o is c = do
     ensureSafeId i
     typeTbl.at i ?= ConType
     entTbl.at i  ?= e
     objTbl.at i  ?= o
-    invTbl.at i  ?= xs
+    invTbl.at i  ?= is
     conTbl.at i  ?= c
 
 
@@ -73,20 +72,21 @@ putArm i e o a = do
     armTbl.at i  ?= a
 
 
-putMob :: Id -> Ent -> Inv -> Mob -> StateT WorldState IO ()
-putMob i e xs m = do
+putMob :: Id -> Ent -> Inv -> EqMap -> Mob -> StateT WorldState IO ()
+putMob i e is em m = do
     ensureSafeId i
     typeTbl.at i ?= MobType
     entTbl.at i  ?= e
-    invTbl.at i  ?= xs
+    invTbl.at i  ?= is
+    eqTbl.at i   ?= em
     mobTbl.at i  ?= m
 
 
 putRm :: Id -> Inv -> Rm -> StateT WorldState IO ()
-putRm i xs r = do
+putRm i is r = do
     ensureSafeId i
     typeTbl.at i ?= RmType
-    invTbl.at i  ?= xs
+    invTbl.at i  ?= is
     rmTbl.at  i  ?= r
 
 
@@ -116,8 +116,10 @@ initPla = Pla { _rmId = iHill
 
 createWorld :: StateT WorldState IO ()
 createWorld = do
-    putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1] (Mob Male 10 10 10 10 10 10 0)
+    putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0)
+
     putRm  iHill [iGP1] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
+
     putRm  iCliff [iElephant, iBag2] (Rm "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
     
     putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1)
@@ -132,6 +134,8 @@ createWorld = do
     putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1) [iGP2, iGP3] (Con 10)
     putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1) [iKewpie2] (Con 10)
 
+    putWpn iSword1 (Ent iSword1 "short" "short sword" "" "It's a sword; short but still sharp! It's silver." 0) (Obj 1 1) (Wpn OneHanded 1 10)
+    putWpn iSword2 (Ent iSword2 "short" "short sword" "" "It's a sword; short but still sharp! It's gold." 0) (Obj 1 1) (Wpn OneHanded 1 10)
 
 -----
 
@@ -153,6 +157,6 @@ mkOkapi = do
                 , _hp = 10
                 , _fp = 10
                 , _xp = 50 }
-    putMob i e [] m
+    putMob i e [] (M.fromList []) m
     addToInv [i] iHill
     return i

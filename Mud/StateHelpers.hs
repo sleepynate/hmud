@@ -16,6 +16,7 @@ import Data.List (delete, sort)
 import Data.Maybe (fromJust)
 import Data.Text.Read (decimal)
 import Data.Text.Strict.Lens (packed, unpacked)
+import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -40,8 +41,7 @@ aOrAn t
 
 
 findAbbrev :: T.Text -> [T.Text] -> Maybe T.Text
-findAbbrev needle hay = case res of [] -> Nothing
-                                    _  -> Just . head $ res
+findAbbrev needle hay = if null res then Nothing else Just . head $ res
   where
     res = sort . filter (needle `T.isPrefixOf`) $ hay
 
@@ -198,6 +198,18 @@ getInv i = do
     return (fromJust $ ws^.invTbl.at i)
 
 
+getEqMap :: Id -> StateT WorldState IO EqMap
+getEqMap i = do
+    ws <- get
+    return (fromJust $ ws^.eqTbl.at i)
+
+
+getEq :: Id -> StateT WorldState IO Inv
+getEq i = do
+    em <- getEqMap i
+    return (M.elems em)
+
+
 addToInv :: Inv -> Id -> StateT WorldState IO ()
 addToInv is to = do
     toIs <- getInv to
@@ -217,6 +229,10 @@ moveInv is from to = remFromInv is from >> addToInv is to
 
 getPlaInv :: StateT WorldState IO Inv
 getPlaInv = getInv 0
+
+
+getPlaEq :: StateT WorldState IO Inv
+getPlaEq = getEq 0
 
 
 getPlaRmId :: StateT WorldState IO Id

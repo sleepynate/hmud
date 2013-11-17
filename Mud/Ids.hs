@@ -28,3 +28,7 @@ iElephant = 8 :: Int
 iBag1 = 9 :: Int
 
 iBag2 = 10 :: Int
+
+iSword1 = 11 :: Int
+
+iSword2 = 12 :: Int

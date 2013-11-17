@@ -9,6 +9,7 @@ import Mud.DataTypes
 import Mud.StateHelpers
 import Mud.TheWorld
 
+import Control.Arrow (first)
 import Control.Lens.Operators ((^.), (.=))
 import Control.Monad (void, when)
 import Control.Monad.Trans.Class (lift)
@@ -79,6 +80,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "d", action = go "d", cmdDesc = "Go down." }
           , Cmd { cmdName = "look", action = look, cmdDesc = "Look." }
           , Cmd { cmdName = "inv", action = inventory, cmdDesc = "Inventory." }
+          , Cmd { cmdName = "equip", action = equipment, cmdDesc = "Equipment." }
           , Cmd { cmdName = "get", action = getAction, cmdDesc = "Pick items up off the ground." }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
@@ -165,7 +167,7 @@ tryMove dir = let dir' = T.toLower dir
                    Just i  -> pla.rmId .= i >> look [""]
 
 
-dirMap :: M.Map T.Text (Room -> Id)
+dirMap :: M.Map T.Text (Rm -> Id)
 dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u", up), ("d", down)]
 
 
@@ -194,16 +196,18 @@ makeCountList xs = [ length (filter (==x) xs) | x <- xs ]
 
 descEnt :: Ent -> StateT WorldState IO ()
 descEnt e = do
-  lift . T.putStrLn $ e^.desc
-  t <- getEntType e
-  when (t == ConType) $ descEntsInInvForId (e^.entId)
+    lift . T.putStrLn $ e^.desc
+    t <- getEntType e
+    when (t == ConType) $ descEntsInInvForId ei
+    when (t == MobType) $ descEq ei
+  where
+    ei = e^.entId
 
 
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
     ens <- getInv i >>= getEntBothGramNosInInv
-    case ens of [] -> empty
-                _  -> header >> (mapM_ descEntInInv . nub . zip (makeCountList ens) $ ens)
+    if null ens then empty else header >> (mapM_ descEntInInv . nub . zip (makeCountList ens) $ ens)
   where
     empty
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
@@ -220,6 +224,35 @@ inventory [""] = descEntsInInvForId 0
 inventory [r] = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= flip F.forM_ (mapM_ descEnt)
 inventory (r:rs) = inventory [r] >> inventory rs
 inventory _ = undefined
+
+
+equipment :: Action
+equipment [""] = descEq 0
+equipment [r] = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= flip F.forM_ (mapM_ descEnt)
+equipment (r:rs) = equipment [r] >> equipment rs
+equipment _ = undefined
+
+
+descEq :: Id -> StateT WorldState IO ()
+descEq i = do
+    edl <- getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList
+    if null edl then empty else header >> mapM_ (lift . T.putStrLn) edl
+  where
+    mkSlotNameToIdList = map (first getSlotName)
+    getSlotName s = fromJust . M.lookup s $ slotNamesMap
+    mkEqDescList = mapM descEqHelper
+    empty
+      | i == 0 = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
+      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " doesn't have anything readied." }
+    header
+      | i == 0 = lift . T.putStrLn $ "You have readied the following equipment:"
+      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " has readied the following equipment:" }
+
+
+descEqHelper :: (SlotName, Id) -> StateT WorldState IO T.Text
+descEqHelper (sn, i) = do
+    e <- getEnt i
+    return ("[" <> sn <> "] " <> ([tab]^.packed) <> (e^.sing))
 
 
 getAction :: Action
@@ -320,12 +353,12 @@ remHelper ci (r:rs) = do
                       Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
 
 
-data PlaOrRm = PlaInv | RmInv deriving Eq
+data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 
 what :: Action
 what [""] = lift . T.putStrLn $ "What abbreviation do you want to look up?"
-what [r] = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv RmInv r
+what [r] = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
 what (r:rs) = what [r] >> lift newLine >> what rs
 what _ = undefined
 
@@ -336,9 +369,11 @@ whatCmd r = case findAbbrev (T.toLower r) (map cmdName cmdList) of
   Just cn -> T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
 
 
-whatInv :: PlaOrRm -> T.Text -> StateT WorldState IO ()
-whatInv por r = do
-    is <- if por == PlaInv then getPlaInv else getPlaRmInv
+whatInv :: InvType -> T.Text -> StateT WorldState IO ()
+whatInv it r = do
+    is <- case it of PlaInv -> getPlaInv
+                     PlaEq  -> getPlaEq
+                     RmInv  -> getPlaRmInv
     ger <- getEntsInInvByName r is
     case ger of
       (Mult n (Just es)) | n == acp -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> target
@@ -354,7 +389,9 @@ whatInv por r = do
       _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
   where
     acp = [allChar]^.packed
-    target = if por == PlaInv then "in your inventory." else "in this room."
+    target = case it of PlaInv -> "in your inventory."
+                        PlaEq  -> "in your readied equipment."
+                        RmInv  -> "in this room."
 
 
 checkFirst :: Ent -> [T.Text] -> T.Text

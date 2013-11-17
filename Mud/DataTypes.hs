@@ -162,7 +162,27 @@ data Slot = HeadS
           | FullBodyCS
           | UpBodyAS
           | LowBodyAS
-          | FullBodyAS deriving (Eq, Show)
+          | FullBodyAS deriving (Eq, Show, Ord)
+
+type SlotName = T.Text
+
+slotNamesMap :: M.Map Slot SlotName
+slotNamesMap = M.fromList [ (HeadS,      "head")
+                          , (NeckS,      "neck")
+                          , (RWristS,    "right wrist")
+                          , (LWristS,    "left wrist")
+                          , (FingersS,   "finger")
+                          , (RHandS,     "right hand")
+                          , (LHandS,     "left hand")
+                          , (BothHandsS, "both hands")
+                          , (FeetS,      "feet")
+                          , (BackS,      "back")
+                          , (UpBodyCS,   "upper body")
+                          , (LowBodyCS,  "lower body")
+                          , (FullBodyCS, "full body")
+                          , (UpBodyAS,   "upper body")
+                          , (LowBodyAS,  "lower body")
+                          , (FullBodyAS, "full body") ]
 
 -----
 
@@ -196,9 +216,9 @@ data WorldState = WorldState { _entTbl   :: EntTbl
                              , _wpnTbl   :: WpnTbl
                              , _armTbl   :: ArmTbl
                              , _mobTbl   :: MobTbl
-                             , _rmTbl    :: RmTbl 
+                             , _rmTbl    :: RmTbl
                              , _invTbl   :: InvTbl
-                             , _eqTable  :: EqTable
+                             , _eqTbl    :: EqTable
                              , _typeTbl  :: TypeTbl
                              , _pla      :: Pla }
 
