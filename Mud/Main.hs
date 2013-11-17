@@ -22,8 +22,10 @@ import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Console.Readline (readline)
+import System.Directory (getTemporaryDirectory, removeFile)
+import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
-
+import System.IO
 
 -- ==================================================
 -- Top level definitions and convenience methods:
@@ -39,7 +41,11 @@ newLine = putChar $ nl
 
 
 quote :: T.Text -> T.Text
-quote s = "\"" <> s <> "\""
+quote t = "\"" <> t <> "\""
+
+
+unquote :: T.Text -> T.Text
+unquote = T.init . T.tail
 
 
 mkOrdinal :: Int -> T.Text
@@ -47,8 +53,8 @@ mkOrdinal 0  = undefined
 mkOrdinal 11 = "11th"
 mkOrdinal 12 = "12th"
 mkOrdinal 13 = "13th"
-mkOrdinal x = let s = showText x
-              in s <> case T.last s of '1' -> "st"
+mkOrdinal x = let t = showText x
+              in t <> case T.last t of '1' -> "st"
                                        '2' -> "nd"
                                        '3' -> "rd"
                                        _   -> "th"
@@ -86,6 +92,8 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
           , Cmd { cmdName = "remove", action = remove, cmdDesc = "Remove items from a container." }
           , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
+          , Cmd { cmdName = "buffer", action = bufferCheck, cmdDesc = "Confirm the default buffering mode." }
+          , Cmd { cmdName = "env", action = dumpEnv, cmdDesc = "Dump system environment variables." }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
 
 
@@ -98,7 +106,10 @@ main = welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
 
 
 welcomeMsg :: IO ()
-welcomeMsg = T.putStrLn "Welcome to the game!\n"
+welcomeMsg = do
+    u <- getEnv "USER"
+    pn <- getProgName
+    T.putStrLn $ "\nHello, " <> (u^.packed) <> ". Welcome to " <> quote (pn^.packed) <> "!\n"
 
 
 game :: StateT WorldState IO ()
@@ -404,3 +415,25 @@ okapi :: Action
 okapi _ = do
     i <- mkOkapi
     lift . T.putStrLn $ "Made okapi with id " <> showText i <> "."
+
+
+bufferCheck :: Action
+bufferCheck _ = lift bufferCheckHelper
+  where
+    bufferCheckHelper = do
+        td <- getTemporaryDirectory
+        (fn, h) <- openTempFile td "temp"
+        bm <- hGetBuffering h
+        T.putStrLn $ "(Default) buffering mode for temp file " <> quote (fn^.packed) <> " is " <> (quote . showText $ bm) <> "."
+        hClose h
+        removeFile fn
+
+
+dumpEnv :: Action
+dumpEnv _ = lift $ getEnvironment >>= dumpAssocList
+
+
+dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
+dumpAssocList al = mapM_ dump al
+  where
+    dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
