@@ -14,21 +14,34 @@ import Control.Lens.Operators ((^.), (.=))
 import Control.Monad (void, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
-import Data.List (nub)
+import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust)
-import Data.Text.Strict.Lens (packed)
+import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
+import System.Cmd (rawSystem)
 import System.Console.Readline (readline)
-import System.Directory (getTemporaryDirectory, removeFile)
+import System.Directory (getDirectoryContents, getTemporaryDirectory, removeFile, setCurrentDirectory)
 import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
 
 -- ==================================================
 -- Top level definitions and convenience methods:
+
+
+ver :: T.Text
+ver = "0.0 2013-10"
+
+
+mudDir :: FilePath
+mudDir = "/Users/stolaruk/Haskell/hmud/Mud/"
+
+
+helpDir :: FilePath
+helpDir = mudDir ++ "help/"
 
 
 nl, tab :: Char
@@ -76,7 +89,8 @@ data Cmd = Cmd { cmdName :: CmdName
 
 cmdList :: [Cmd]
 cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
-          , Cmd { cmdName = "?", action = \_ -> lift help, cmdDesc = "Display help." }
+          , Cmd { cmdName = "?", action = \_ -> lift dispCmdList, cmdDesc = "Display this command list." }
+          , Cmd { cmdName = "help", action =  help, cmdDesc = "Get help on a topic or command." }
           , Cmd { cmdName = "what", action = what, cmdDesc = "Determine what an abbreviation may refer to." }
           , Cmd { cmdName = "n", action = go "n", cmdDesc = "Go north." }
           , Cmd { cmdName = "s", action = go "s", cmdDesc = "Go south." }
@@ -94,6 +108,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
           , Cmd { cmdName = "buffer", action = bufferCheck, cmdDesc = "Confirm the default buffering mode." }
           , Cmd { cmdName = "env", action = dumpEnv, cmdDesc = "Dump system environment variables." }
+          , Cmd { cmdName = "uptime", action = uptime, cmdDesc = "Display system uptime." }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
 
 
@@ -102,14 +117,14 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
+main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
 
 
 welcomeMsg :: IO ()
 welcomeMsg = do
     u <- getEnv "USER"
     pn <- getProgName
-    T.putStrLn $ "\nHello, " <> (u^.packed) <> ". Welcome to " <> quote (pn^.packed) <> "!\n"
+    T.putStrLn $ "Hello, " <> (u^.packed) <> ". Welcome to " <> quote (pn^.packed) <> " ver " <> ver <> ".\n"
 
 
 game :: StateT WorldState IO ()
@@ -149,10 +164,29 @@ findAction cn = case findAbbrev cn' cns of
 -- User commands:
 
 
-help :: IO ()
-help = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
+dispCmdList :: IO ()
+dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
   where
     makeTxtForCmd txt c = T.concat [cmdName c, [tab]^.packed, cmdDesc c, [nl]^.packed, txt]
+
+
+help :: Action
+help [""] = lift . dumpFile $ helpDir ++ "root"
+help [r] = lift . dispHelpTopicByName $ r
+help (r:rs) = help [r] >> lift newLine >> help rs
+help _ = undefined
+
+
+dispHelpTopicByName :: T.Text -> IO ()
+dispHelpTopicByName r = do
+    fns <- getDirectoryContents helpDir
+    let tns = map T.pack (tail . tail . sort . delete "root" $ fns)
+    case findAbbrev r tns of Nothing -> T.putStrLn "No help is available on that topic/command."
+                             Just tn -> dumpFile $ helpDir ++ tn^.unpacked
+
+
+dumpFile :: FilePath -> IO ()
+dumpFile fn = readFile fn >>= putStr
 
 
 go :: T.Text -> Action
@@ -437,3 +471,7 @@ dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
 dumpAssocList al = mapM_ dump al
   where
     dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
+
+
+uptime :: Action
+uptime _ = lift . void . rawSystem "uptime" $ []
