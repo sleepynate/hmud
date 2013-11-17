@@ -11,7 +11,7 @@ import Mud.TheWorld
 
 import Control.Arrow (first)
 import Control.Lens.Operators ((^.), (.=))
-import Control.Monad (void, when)
+import Control.Monad (forM_, void, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.List (delete, nub, sort)
@@ -61,6 +61,12 @@ unquote :: T.Text -> T.Text
 unquote = T.init . T.tail
 
 
+dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
+dumpAssocList al = mapM_ dump al
+  where
+    dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
+
+
 mkOrdinal :: Int -> T.Text
 mkOrdinal 0  = undefined
 mkOrdinal 11 = "11th"
@@ -90,7 +96,7 @@ data Cmd = Cmd { cmdName :: CmdName
 cmdList :: [Cmd]
 cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "?", action = \_ -> lift dispCmdList, cmdDesc = "Display this command list." }
-          , Cmd { cmdName = "help", action =  help, cmdDesc = "Get help on a topic or command." }
+          , Cmd { cmdName = "help", action = help, cmdDesc = "Get help on a topic or command." }
           , Cmd { cmdName = "what", action = what, cmdDesc = "Determine what an abbreviation may refer to." }
           , Cmd { cmdName = "n", action = go "n", cmdDesc = "Go north." }
           , Cmd { cmdName = "s", action = go "s", cmdDesc = "Go south." }
@@ -99,14 +105,14 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "u", action = go "u", cmdDesc = "Go up." }
           , Cmd { cmdName = "d", action = go "d", cmdDesc = "Go down." }
           , Cmd { cmdName = "look", action = look, cmdDesc = "Look." }
-          , Cmd { cmdName = "inv", action = inventory, cmdDesc = "Inventory." }
-          , Cmd { cmdName = "equip", action = equipment, cmdDesc = "Equipment." }
+          , Cmd { cmdName = "inv", action = inv, cmdDesc = "Inventory." }
+          , Cmd { cmdName = "equip", action = equip, cmdDesc = "Equipment." }
           , Cmd { cmdName = "get", action = getAction, cmdDesc = "Pick items up off the ground." }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
           , Cmd { cmdName = "remove", action = remove, cmdDesc = "Remove items from a container." }
           , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
-          , Cmd { cmdName = "buffer", action = bufferCheck, cmdDesc = "Confirm the default buffering mode." }
+          , Cmd { cmdName = "buffer", action = buffCheck, cmdDesc = "Confirm the default buffering mode." }
           , Cmd { cmdName = "env", action = dumpEnv, cmdDesc = "Dump system environment variables." }
           , Cmd { cmdName = "uptime", action = uptime, cmdDesc = "Display system uptime." }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
@@ -221,7 +227,7 @@ look [""] = do
     r <- getPlaRm
     lift . T.putStrLn . T.concat $ [r^.name, [nl]^.packed, r^.desc]
     getPlaRmInv >>= dispRmInv
-look [r] = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= flip F.forM_ (mapM_ descEnt)
+look [r] = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= F.mapM_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _ = undefined
 
@@ -229,7 +235,7 @@ look _ = undefined
 dispRmInv :: Inv -> StateT WorldState IO ()
 dispRmInv is = do
     ens <- getEntBothGramNosInInv is
-    mapM_ descEntInRm . nub . zip (makeCountList ens) $ ens
+    mapM_ descEntInRm (nub . zip (makeCountList ens) $ ens)
   where
     descEntInRm (x, (s, _)) | x == 1 = lift . T.putStrLn $ "There is " <> aOrAn s <> " here."
     descEntInRm (x, both) = lift . T.putStrLn $ "There are " <> showText x <> " " <> makePlurFromBoth both <> " here."
@@ -252,7 +258,7 @@ descEnt e = do
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
     ens <- getInv i >>= getEntBothGramNosInInv
-    if null ens then empty else header >> (mapM_ descEntInInv . nub . zip (makeCountList ens) $ ens)
+    if null ens then empty else header >> mapM_ descEntInInv (nub . zip (makeCountList ens) $ ens)
   where
     empty
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
@@ -264,24 +270,24 @@ descEntsInInvForId i = do
     descEntInInv (x, both) = lift . T.putStrLn $ showText x <> " " <> makePlurFromBoth both
 
 
-inventory :: Action
-inventory [""] = descEntsInInvForId 0
-inventory [r] = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= flip F.forM_ (mapM_ descEnt)
-inventory (r:rs) = inventory [r] >> inventory rs
-inventory _ = undefined
+inv :: Action
+inv [""] = descEntsInInvForId 0
+inv [r] = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+inv (r:rs) = inv [r] >> inv rs
+inv _ = undefined
 
 
-equipment :: Action
-equipment [""] = descEq 0
-equipment [r] = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= flip F.forM_ (mapM_ descEnt)
-equipment (r:rs) = equipment [r] >> equipment rs
-equipment _ = undefined
+equip :: Action
+equip [""] = descEq 0
+equip [r] = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+equip (r:rs) = equip [r] >> equip rs
+equip _ = undefined
 
 
 descEq :: Id -> StateT WorldState IO ()
 descEq i = do
     edl <- getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList
-    if null edl then empty else header >> mapM_ (lift . T.putStrLn) edl
+    if null edl then empty else header >> forM_ edl (lift . T.putStrLn)
   where
     mkSlotNameToIdList = map (first getSlotName)
     getSlotName s = fromJust . M.lookup s $ slotNamesMap
@@ -451,8 +457,8 @@ okapi _ = do
     lift . T.putStrLn $ "Made okapi with id " <> showText i <> "."
 
 
-bufferCheck :: Action
-bufferCheck _ = lift bufferCheckHelper
+buffCheck :: Action
+buffCheck _ = lift bufferCheckHelper
   where
     bufferCheckHelper = do
         td <- getTemporaryDirectory
@@ -465,12 +471,6 @@ bufferCheck _ = lift bufferCheckHelper
 
 dumpEnv :: Action
 dumpEnv _ = lift $ getEnvironment >>= dumpAssocList
-
-
-dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
-dumpAssocList al = mapM_ dump al
-  where
-    dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
 
 
 uptime :: Action
