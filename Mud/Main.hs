@@ -16,7 +16,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust)
-import Data.Text.Strict.Lens (packed, unpacked)
+import Data.Text.Strict.Lens (packed)
 import qualified Data.Foldable as F
 import qualified Data.Map as M
 import qualified Data.Text as T
@@ -51,6 +51,10 @@ tab = '\t'
 
 newLine :: IO ()
 newLine = putChar $ nl
+
+
+ok :: IO ()
+ok = T.putStrLn $ "Ok."
 
 
 quote :: T.Text -> T.Text
@@ -128,16 +132,17 @@ main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS
 
 welcomeMsg :: IO ()
 welcomeMsg = do
-    u <- getEnv "USER"
-    pn <- getProgName
-    T.putStrLn $ "Hello, " <> (u^.packed) <> ". Welcome to " <> quote (pn^.packed) <> " ver " <> ver <> ".\n"
+    un <- getEnv "USER"
+    mn <- whatsMyName
+    T.putStrLn $ "Hello, " <> (un^.packed) <> ". Welcome to " <> quote mn <> " ver " <> ver <> ".\n"
+  where
+    whatsMyName = getProgName >>= \mn -> return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
 
 
 game :: StateT WorldState IO ()
 game = do
     ms <- lift . readline $ "> "
-    case parseInp (fromJust ms ^.packed) of Nothing  -> game
-                                            Just inp -> dispatch inp
+    maybe game dispatch $ parseInp (fromJust ms ^.packed)
 
 
 parseInp :: T.Text -> Maybe Input
@@ -149,17 +154,15 @@ parseInp = splitUp . T.words
 
 
 dispatch :: Input -> StateT WorldState IO ()
-dispatch (cn, rest) = case findAction cn of Nothing -> wtf >> next
-                                            Just a  -> a rest >> next
+dispatch (cn, rest) = maybe (wtf >> next) act $ findAction cn
   where
-    wtf  = lift . T.putStrLn $ "?"
+    wtf = lift . T.putStrLn $ "?"
     next = lift newLine >> game
+    act a = a rest >> next
 
 
 findAction :: CmdName -> Maybe Action
-findAction cn = case findAbbrev cn' cns of
-  Nothing -> Nothing
-  Just fn -> Just . action . findCmdForFullName $ fn
+findAction cn = fmap (action . findCmdForFullName) $ findAbbrev cn' cns
   where
     cn' = T.toLower cn
     cns = map cmdName cmdList
@@ -187,8 +190,10 @@ dispHelpTopicByName :: T.Text -> IO ()
 dispHelpTopicByName r = do
     fns <- getDirectoryContents helpDir
     let tns = map T.pack (tail . tail . sort . delete "root" $ fns)
-    case findAbbrev r tns of Nothing -> T.putStrLn "No help is available on that topic/command."
-                             Just tn -> dumpFile $ helpDir ++ tn^.unpacked
+    maybe sorry dispHelp $ findAbbrev r tns
+  where
+    sorry = T.putStrLn "No help is available on that topic/command."
+    dispHelp = dumpFile . (++) helpDir . T.unpack
 
 
 dumpFile :: FilePath -> IO ()
@@ -208,14 +213,13 @@ goDispatcher _ = undefined
 
 tryMove :: T.Text -> StateT WorldState IO ()
 tryMove dir = let dir' = T.toLower dir
-              in case M.lookup dir' dirMap of
-                Nothing -> lift . T.putStrLn . quote $ dir <> " is not a valid direction."
-                Just f  -> movePla f
+              in maybe sorry movePla $ M.lookup dir' dirMap
   where
-    movePla f = do
-        mi <- getPlaRmNextRmId f
-        case mi of Nothing -> lift . T.putStrLn $ "You can't go that way."
-                   Just i  -> pla.rmId .= i >> look [""]
+    sorry = lift . T.putStrLn . quote $ dir <> " is not a valid direction."
+    movePla f = getPlaRmNextRmId f >>= maybe heDont moveHelper
+      where
+        heDont = lift . T.putStrLn $ "You can't go that way."
+        moveHelper i = pla.rmId .= i >> look [""]
 
 
 dirMap :: M.Map T.Text (Rm -> Id)
@@ -313,7 +317,7 @@ getAction [r] = do
     case mes of Nothing -> return ()
                 Just es -> do
                     i <- getPlaRmId
-                    moveInv (getEntIds es) i 0 >> (lift . T.putStrLn $ "Ok.")
+                    moveInv (getEntIds es) i 0 >> lift ok
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
@@ -325,7 +329,7 @@ dropAction [r] = do
     case mes of Nothing -> return ()
                 Just es -> do
                     i <- getPlaRmId
-                    moveInv (getEntIds es) 0 i >> (lift . T.putStrLn $ "Ok.")
+                    moveInv (getEntIds es) 0 i >> lift ok
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
 
@@ -359,7 +363,7 @@ putRemDispatcher por (r:rs) = do
                                 let e = head es
                                 t <- getEntType e
                                 if t /= ConType
-                                  then void (lift . T.putStrLn $ "The " <> (e^.sing) <> " isn't a container.")
+                                  then lift . T.putStrLn $ "The " <> (e^.sing) <> " isn't a container."
                                   else dispatchToHelper (e^.entId)
   where
     findCon cn
@@ -378,7 +382,7 @@ putHelper :: Id -> Rest -> StateT WorldState IO ()
 putHelper _ [] = return ()
 putHelper ci (r:rs) = do
     mes <- getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
-    case mes of Nothing -> putHelper ci rs
+    case mes of Nothing -> next
                 Just es -> do
                     let is = getEntIds es
                     if ci `elem` is
@@ -386,9 +390,12 @@ putHelper ci (r:rs) = do
                           e <- getEnt ci
                           lift . T.putStrLn $ "You can't put the " <> (e^.sing) <> " inside itself."
                           let is' = filter (/= ci) is
-                          case length is' of 0 -> putHelper ci rs
-                                             _ -> moveInv is' 0 ci >> (lift . T.putStrLn $ "Ok.") >> putHelper ci rs
-                      else moveInv is 0 ci >> (lift . T.putStrLn $ "Ok.") >> putHelper ci rs
+                          if null is'
+                            then next
+                            else moveInv is' 0 ci >> lift ok >> next
+                      else moveInv is 0 ci >> lift ok >> next
+  where
+    next = putHelper ci rs
 
 
 remHelper :: Id -> Rest -> StateT WorldState IO ()
@@ -398,10 +405,10 @@ remHelper ci (r:rs) = do
     fromIs <- getInv ci
     if null fromIs
       then lift . T.putStrLn $ "The " <> (e^.sing) <> " appears to be empty."
-      else do
-          mes <- getEntsInInvByName r fromIs >>= procGetEntResCon (e^.sing) r
-          case mes of Nothing -> remHelper ci rs
-                      Just es -> moveInv (getEntIds es) ci 0 >> (lift . T.putStrLn $ "Ok.") >> remHelper ci rs
+      else getEntsInInvByName r fromIs >>= procGetEntResCon (e^.sing) r >>= maybe next shuffleInv
+  where
+    next = remHelper ci rs
+    shuffleInv es = moveInv (getEntIds es) ci 0 >> lift ok >> next
 
 
 data InvType = PlaInv | PlaEq | RmInv deriving Eq
@@ -415,9 +422,10 @@ what _ = undefined
 
 
 whatCmd :: T.Text -> IO ()
-whatCmd r = case findAbbrev (T.toLower r) (map cmdName cmdList) of
-  Nothing -> T.putStrLn $ quote r <> " doesn't refer to any commands."
-  Just cn -> T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
+whatCmd r = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
+  where
+    notFound = T.putStrLn $ quote r <> " doesn't refer to any commands."
+    found cn = T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
 
 
 whatInv :: InvType -> T.Text -> StateT WorldState IO ()

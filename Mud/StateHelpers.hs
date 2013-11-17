@@ -111,8 +111,7 @@ getEntsInInvByName searchName is
   | searchName == ([allChar]^.packed) = liftM (Mult searchName . Just) $ getEntsInInv is
   | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
   | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
-                                      noInt = case decimal noText of Right (i, _) -> i
-                                                                     _ -> undefined
+                                      noInt = either undefined fst $ decimal noText
                                       rest = T.drop (T.length noText) searchName
                                   in parse rest noInt
   | otherwise = getMultEnts 1 searchName is
@@ -129,27 +128,26 @@ getEntsInInvByName searchName is
 getMultEnts :: Amount -> T.Text -> Inv -> StateT WorldState IO GetEntResult
 getMultEnts a n is
   | a < 1 = return Sorry
-  | otherwise = do
-    ens <- getEntNamesInInv is
-    case findAbbrev n ens of Nothing -> return (Mult n Nothing)
-                             Just fullName -> liftM (Mult n . Just . findMatchingEnts fullName) $ getEntsInInv is
+  | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
-    findMatchingEnts fn = take a . filter (\e -> e^.name == fn)
+    notFound = return (Mult n Nothing)
+    found fullName = liftM (Mult n . Just . takeMatchingEnts fullName) $ getEntsInInv is
+    takeMatchingEnts fn = take a . filter (\e -> e^.name == fn)
 
 
 getIndexedEnt :: Index -> T.Text -> Inv -> StateT WorldState IO GetEntResult
 getIndexedEnt x n is
   | x < 1 = return Sorry
-  | otherwise = do
-    ens <- getEntNamesInInv is
-    case findAbbrev n ens of Nothing -> return (Indexed x n . Left $ "")
-                             Just fullName -> do
-                                 es <- getEntsInInv is
-                                 let matches = filter (\e -> e^.name == fullName) es
-                                 if length matches < x
-                                   then let both = getEntBothGramNos (head matches)
-                                        in return (Indexed x n . Left . makePlurFromBoth $ both)
-                                   else return (Indexed x n . Right $ matches !! (x - 1))
+  | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
+  where
+    notFound = return (Indexed x n . Left $ "")
+    found fullName = do
+        es <- getEntsInInv is
+        let matches = filter (\e -> e^.name == fullName) es
+        if length matches < x
+          then let both = getEntBothGramNos (head matches)
+               in return (Indexed x n . Left . makePlurFromBoth $ both)
+          else return (Indexed x n . Right $ matches !! (x - 1))
 
 
 procGetEntResRm :: T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
