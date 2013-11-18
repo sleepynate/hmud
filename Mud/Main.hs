@@ -14,10 +14,10 @@ import Control.Lens.Operators ((^.), (.=))
 import Control.Monad (forM_, void, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
+import Data.Foldable (traverse_)
 import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust)
-import Data.Text.Strict.Lens (packed)
-import qualified Data.Foldable as F
+import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -28,6 +28,10 @@ import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
 
+
+-- TODO: Use applicative style where you can!
+
+
 -- ==================================================
 -- Top level definitions and convenience methods:
 
@@ -37,7 +41,7 @@ ver = "0.0 2013-10"
 
 
 mudDir :: FilePath
-mudDir = "/Users/stolaruk/Haskell/hmud/Mud/"
+mudDir = "/Users/stolaruk/Haskell/hmud/Mud/"^.unpacked
 
 
 helpDir :: FilePath
@@ -66,7 +70,7 @@ unquote = T.init . T.tail
 
 
 dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
-dumpAssocList al = mapM_ dump al
+dumpAssocList = mapM_ dump
   where
     dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
 
@@ -197,7 +201,7 @@ dispHelpTopicByName r = do
 
 
 dumpFile :: FilePath -> IO ()
-dumpFile fn = readFile fn >>= putStr
+dumpFile fn = T.putStr =<< T.readFile fn
 
 
 go :: T.Text -> Action
@@ -231,7 +235,7 @@ look [""] = do
     r <- getPlaRm
     lift . T.putStrLn . T.concat $ [r^.name, [nl]^.packed, r^.desc]
     getPlaRmInv >>= dispRmInv
-look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= F.mapM_ (mapM_ descEnt)
+look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _ = undefined
 
@@ -276,14 +280,14 @@ descEntsInInvForId i = do
 
 inv :: Action
 inv [""]   = descEntsInInvForId 0
-inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
 inv _ = undefined
 
 
 equip :: Action
 equip [""]   = descEq 0
-equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= F.mapM_ (mapM_ descEnt)
+equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ (mapM_ descEnt)
 equip (r:rs) = equip [r] >> equip rs
 equip _ = undefined
 
@@ -312,7 +316,7 @@ descEqHelper (sn, i) = do
 
 getAction :: Action
 getAction [""] = lift . T.putStrLn $ "What do you want to get?"
-getAction [r]  = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= maybe (return ()) shuffleInv
+getAction [r]  = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ shuffleInv
   where
     shuffleInv es = do
         i <- getPlaRmId
@@ -323,7 +327,7 @@ getAction _ = undefined
 
 dropAction :: Action
 dropAction [""] = lift . T.putStrLn $ "What do you want to drop?"
-dropAction [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= maybe (return ()) shuffleInv
+dropAction [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
   where
     shuffleInv es = do
         i <- getPlaRmId

@@ -127,7 +127,7 @@ getEntsInInvByName searchName is
 
 getMultEnts :: Amount -> T.Text -> Inv -> StateT WorldState IO GetEntResult
 getMultEnts a n is
-  | a < 1 = return Sorry
+  | a < 1     = return Sorry
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
     notFound = return (Mult n Nothing)
@@ -137,7 +137,7 @@ getMultEnts a n is
 
 getIndexedEnt :: Index -> T.Text -> Inv -> StateT WorldState IO GetEntResult
 getIndexedEnt x n is
-  | x < 1 = return Sorry
+  | x < 1     = return Sorry
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
     notFound = return (Indexed x n . Left $ "")
@@ -221,7 +221,7 @@ remFromInv is from = do
 
 
 moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
-moveInv [] _ _ = return ()
+moveInv [] _ _     = return ()
 moveInv is from to = remFromInv is from >> addToInv is to
 
 
