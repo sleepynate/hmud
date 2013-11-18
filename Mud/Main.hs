@@ -11,9 +11,10 @@ import Mud.TheWorld
 
 import Control.Arrow (first)
 import Control.Lens.Operators ((^.), (.=))
-import Control.Monad (forM_, void, when)
+import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
+import Data.Char (toUpper)
 import Data.Foldable (traverse_)
 import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust)
@@ -21,12 +22,12 @@ import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import System.Cmd (rawSystem)
 import System.Console.Readline (readline)
 import System.Directory (getDirectoryContents, getTemporaryDirectory, removeFile, setCurrentDirectory)
 import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
+import System.Process (readProcess)
 
 
 -- TODO: Use applicative style where you can!
@@ -484,4 +485,11 @@ dumpEnv _ = lift $ getEnvironment >>= dumpAssocList
 
 
 uptime :: Action
-uptime _ = lift . void . rawSystem "uptime" $ []
+uptime _ = do
+    lift (readProcess "/usr/bin/uptime" [] "") >>= lift . T.putStrLn . parse    
+  where
+    parse ut = let (a, b) = span (/= ',') ut
+                   a' = unwords . tail . words $ a
+                   b' = takeWhile (/= ',') $ tail b
+                   c  = (toUpper . head $ a') : (tail a')
+               in (c^.packed) <> (b'^.packed) <> "."
