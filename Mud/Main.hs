@@ -486,10 +486,10 @@ dumpEnv _ = lift $ getEnvironment >>= dumpAssocList
 
 uptime :: Action
 uptime _ = do
-    lift (readProcess "/usr/bin/uptime" [] "") >>= lift . T.putStrLn . parse    
+    lift (readProcess "/usr/bin/uptime" [] "") >>= lift . T.putStrLn . parse
   where
     parse ut = let (a, b) = span (/= ',') ut
                    a' = unwords . tail . words $ a
-                   b' = takeWhile (/= ',') $ tail b
+                   b' = takeWhile (/= ',') . tail $ b
                    c  = (toUpper . head $ a') : (tail a')
                in (c^.packed) <> (b'^.packed) <> "."
