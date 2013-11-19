@@ -10,6 +10,7 @@ import Mud.StateHelpers
 import Mud.TheWorld
 
 import Control.Arrow (first)
+import Control.Lens (to)
 import Control.Lens.Operators ((^.), (.=))
 import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class (lift)
@@ -28,9 +29,6 @@ import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
 import System.Process (readProcess)
-
-
--- TODO: Use applicative style where you can!
 
 
 -- ==================================================
@@ -147,7 +145,7 @@ welcomeMsg = do
 game :: StateT WorldState IO ()
 game = do
     ms <- lift . readline $ "> "
-    maybe game dispatch $ parseInp (fromJust ms ^.packed)
+    maybe game dispatch $ parseInp (ms^.to fromJust.packed)
 
 
 parseInp :: T.Text -> Maybe Input
@@ -267,14 +265,14 @@ descEnt e = do
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
     ens <- getInv i >>= getEntBothGramNosInInv
-    if null ens then empty else header >> mapM_ descEntInInv (nub . zip (makeCountList ens) $ ens)
+    if null ens then none else header >> mapM_ descEntInInv (nub . zip (makeCountList ens) $ ens)
   where
-    empty
+    none
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
-      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " is empty." }
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " is empty."
     header
       | i == 0 = lift . T.putStrLn $ "You are carrying:"
-      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " contains:" }
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " contains:"
     descEntInInv (x, (s, _)) | x == 1 = lift . T.putStrLn $ "1 " <> s
     descEntInInv (x, both) = lift . T.putStrLn $ showText x <> " " <> makePlurFromBoth both
 
@@ -296,17 +294,17 @@ equip _ = undefined
 descEq :: Id -> StateT WorldState IO ()
 descEq i = do
     edl <- getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList
-    if null edl then empty else header >> forM_ edl (lift . T.putStrLn)
+    if null edl then none else header >> forM_ edl (lift . T.putStrLn)
   where
     mkSlotNameToIdList = map (first getSlotName)
     getSlotName s = fromJust . M.lookup s $ slotNamesMap
     mkEqDescList = mapM descEqHelper
-    empty
+    none
       | i == 0    = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
-      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " doesn't have anything readied." }
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " doesn't have anything readied."
     header
       | i == 0    = lift . T.putStrLn $ "You have readied the following equipment:"
-      | otherwise = do { e <- getEnt i; lift . T.putStrLn $ "The " <> (e^.sing) <> " has readied the following equipment:" }
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " has readied the following equipment:"
 
 
 descEqHelper :: (SlotName, Id) -> StateT WorldState IO T.Text
@@ -405,10 +403,10 @@ remHelper :: Id -> Rest -> StateT WorldState IO ()
 remHelper _ []      = return ()
 remHelper ci (r:rs) = do
     e <- getEnt ci
-    fromIs <- getInv ci
-    if null fromIs
+    fis <- getInv ci
+    if null fis
       then lift . T.putStrLn $ "The " <> (e^.sing) <> " appears to be empty."
-      else getEntsInInvByName r fromIs >>= procGetEntResCon (e^.sing) r >>= maybe next shuffleInv
+      else getEntsInInvByName r fis >>= procGetEntResCon (e^.sing) r >>= maybe next shuffleInv
   where
     next = remHelper ci rs
     shuffleInv es = moveInv (getEntIds es) ci 0 >> lift ok >> next
@@ -475,7 +473,7 @@ buffCheck _ = lift bufferCheckHelper
         td <- getTemporaryDirectory
         (fn, h) <- openTempFile td "temp"
         bm <- hGetBuffering h
-        T.putStrLn $ "(Default) buffering mode for temp file " <> quote (fn^.packed) <> " is " <> (quote . showText $ bm) <> "."
+        T.putStrLn $ "(Default) buffering mode for temp file " <> (fn^.packed.to quote) <> " is " <> (quote . showText $ bm) <> "."
         hClose h
         removeFile fn
 

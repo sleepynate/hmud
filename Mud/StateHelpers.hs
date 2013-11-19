@@ -6,7 +6,7 @@ module Mud.StateHelpers where
 import Mud.DataTypes
 import Mud.Ids (deadEnd)
 
-import Control.Lens (at)
+import Control.Lens (at, to)
 import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (liftM)
 import Control.Monad.Trans.Class (lift)
@@ -30,7 +30,7 @@ import qualified Data.Text.IO as T
 
 
 showText :: (Show a) => a -> T.Text
-showText = T.pack . show
+showText a = show a ^.packed
 
 
 aOrAn :: T.Text -> T.Text
@@ -57,7 +57,7 @@ deleteAllInList xs ys = foldr (\x ys' -> delete x ys') ys xs
 getEnt :: Id -> StateT WorldState IO Ent
 getEnt i = do
     ws <- get
-    return (fromJust $ ws^.entTbl.at i)
+    return (ws^.entTbl.at i.to fromJust)
 
 
 getEntIds :: [Ent] -> Inv
@@ -187,19 +187,19 @@ getEntType :: Ent -> StateT WorldState IO Type
 getEntType e = do
     ws <- get
     let i = e^.entId
-    return (fromJust $ ws^.typeTbl.at i)
+    return (ws^.typeTbl.at i.to fromJust)
 
 
 getInv :: Id -> StateT WorldState IO Inv
 getInv i = do
     ws <- get
-    return (fromJust $ ws^.invTbl.at i)
+    return (ws^.invTbl.at i.to fromJust)
 
 
 getEqMap :: Id -> StateT WorldState IO EqMap
 getEqMap i = do
     ws <- get
-    return (fromJust $ ws^.eqTbl.at i)
+    return (ws^.eqTbl.at i.to fromJust)
 
 
 getEq :: Id -> StateT WorldState IO Inv
@@ -209,20 +209,20 @@ getEq i = do
 
 
 addToInv :: Inv -> Id -> StateT WorldState IO ()
-addToInv is to = do
-    toIs <- getInv to
-    invTbl.at to ?= toIs ++ is
+addToInv is ti = do
+    tis <- getInv ti
+    invTbl.at ti ?= tis ++ is
 
 
 remFromInv :: Inv -> Id -> StateT WorldState IO ()
-remFromInv is from = do
-    fromIs <- getInv from
-    invTbl.at from ?= (deleteAllInList is fromIs)
+remFromInv is fi = do
+    fis <- getInv fi
+    invTbl.at fi ?= (deleteAllInList is fis)
 
 
 moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
-moveInv [] _ _     = return ()
-moveInv is from to = remFromInv is from >> addToInv is to
+moveInv [] _ _   = return ()
+moveInv is fi ti = remFromInv is fi >> addToInv is ti
 
 
 getPlaInv :: StateT WorldState IO Inv
@@ -243,14 +243,14 @@ getPlaRm :: StateT WorldState IO Rm
 getPlaRm = do
     ws <- get
     i <- getPlaRmId
-    return (fromJust $ ws^.rmTbl.at i)
+    return (ws^.rmTbl.at i.to fromJust)
 
 
 getPlaRmInv :: StateT WorldState IO Inv
 getPlaRmInv = do
     ws <- get
     i <- getPlaRmId
-    return (fromJust $ ws^.invTbl.at i)
+    return (ws^.invTbl.at i.to fromJust)
 
 
 getPlaRmNextRmId :: (Rm -> Id) -> StateT WorldState IO (Maybe Id)

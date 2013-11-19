@@ -87,7 +87,7 @@ putRm i is r = do
     ensureSafeId i
     typeTbl.at i ?= RmType
     invTbl.at i  ?= is
-    rmTbl.at  i  ?= r
+    rmTbl.at i   ?= r
 
 
 -----
