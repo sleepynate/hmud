@@ -468,8 +468,7 @@ unready [r]  = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= t
         em <- getPlaEqMap
         let al = M.toList em
         let al' = foldr (\(k, v) acc -> if v `elem` is then acc else (k, v) : acc) [] al -- TODO: Is there a better way to do this? Maybe using functions in Data.Map?
-        eqTbl.at 0 ?= M.fromList al'
-        addToInv is 0 >> lift ok
+        eqTbl.at 0 ?= M.fromList al' >> addToInv is 0 >> lift ok
 unready (r:rs) = unready [r] >> unready rs
 unready _ = undefined
 
