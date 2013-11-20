@@ -12,8 +12,8 @@ import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (liftM, unless, when)
 import Control.Monad.Trans.State
 import Data.List ((\\))
-import qualified Data.IntMap as IM
-import qualified Data.Map as M
+import qualified Data.IntMap.Strict as IM
+import qualified Data.Map.Strict as M
 
 
 getUnusedId :: StateT WorldState IO Id

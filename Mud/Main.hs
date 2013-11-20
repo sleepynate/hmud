@@ -1,7 +1,5 @@
-{-# OPTIONS_GHC -Wall -Werror #-}
-{-# OPTIONS_GHC -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -Wall -Werror -fno-warn-missing-signatures #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE MultiWayIf #-}
 
 module Mud.Main (main) where
 
@@ -10,8 +8,8 @@ import Mud.StateHelpers
 import Mud.TheWorld
 
 import Control.Arrow (first)
-import Control.Lens (to)
-import Control.Lens.Operators ((^.), (.=))
+import Control.Lens (at, to)
+import Control.Lens.Operators ((^.), (.=), (?=))
 import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
@@ -20,7 +18,7 @@ import Data.Foldable (traverse_)
 import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust)
 import Data.Text.Strict.Lens (packed, unpacked)
-import qualified Data.Map as M
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Console.Readline (readline)
@@ -118,6 +116,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
           , Cmd { cmdName = "remove", action = remove, cmdDesc = "Remove items from a container." }
+          , Cmd { cmdName = "unready", action = unready, cmdDesc = "Unready items." }
           , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
           , Cmd { cmdName = "buffer", action = buffCheck, cmdDesc = "Confirm the default buffering mode." }
           , Cmd { cmdName = "env", action = dumpEnv, cmdDesc = "Dump system environment variables." }
@@ -201,6 +200,54 @@ dispHelpTopicByName r = do
 
 dumpFile :: FilePath -> IO ()
 dumpFile fn = T.putStr =<< T.readFile fn
+
+
+data InvType = PlaInv | PlaEq | RmInv deriving Eq
+
+
+what :: Action
+what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
+what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
+what (r:rs) = what [r] >> lift newLine >> what rs
+what _ = undefined
+
+
+whatCmd :: T.Text -> IO ()
+whatCmd r = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
+  where
+    notFound = T.putStrLn $ quote r <> " doesn't refer to any commands."
+    found cn = T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
+
+
+whatInv :: InvType -> T.Text -> StateT WorldState IO ()
+whatInv it r = do
+    is <- case it of PlaInv -> getPlaInv
+                     PlaEq  -> getPlaEq
+                     RmInv  -> getPlaRmInv
+    ger <- getEntsInInvByName r is
+    case ger of
+      (Mult n (Just es)) | n == acp -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> target
+                         | otherwise ->
+                           let e = head es
+                               len = length es
+                           in if len > 1
+                             then lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> (makePlurFromBoth . getEntBothGramNos $ e) <> " " <> target
+                             else do
+                                ens <- getEntNamesInInv is
+                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> (e^.sing) <> " " <> target
+      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> (e^.sing) <> " " <> target
+      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
+  where
+    acp = [allChar]^.packed
+    target = case it of PlaInv -> "in your inventory."
+                        PlaEq  -> "in your readied equipment."
+                        RmInv  -> "in this room."
+
+
+checkFirst :: Ent -> [T.Text] -> T.Text
+checkFirst e ens = if length matches > 1 then "first " else ""
+  where
+    matches = filter (== e^.name) ens
 
 
 go :: T.Text -> Action
@@ -412,52 +459,19 @@ remHelper ci (r:rs) = do
     shuffleInv es = moveInv (getEntIds es) ci 0 >> lift ok >> next
 
 
-data InvType = PlaInv | PlaEq | RmInv deriving Eq
-
-
-what :: Action
-what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
-what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
-what (r:rs) = what [r] >> lift newLine >> what rs
-what _ = undefined
-
-
-whatCmd :: T.Text -> IO ()
-whatCmd r = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
+unready :: Action
+unready [""] = lift . T.putStrLn $ "What do you want to unready?"
+unready [r]  = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
   where
-    notFound = T.putStrLn $ quote r <> " doesn't refer to any commands."
-    found cn = T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
-
-
-whatInv :: InvType -> T.Text -> StateT WorldState IO ()
-whatInv it r = do
-    is <- case it of PlaInv -> getPlaInv
-                     PlaEq  -> getPlaEq
-                     RmInv  -> getPlaRmInv
-    ger <- getEntsInInvByName r is
-    case ger of
-      (Mult n (Just es)) | n == acp -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> target
-                         | otherwise ->
-                           let e = head es
-                               len = length es
-                           in if len > 1
-                             then lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> (makePlurFromBoth . getEntBothGramNos $ e) <> " " <> target
-                             else do
-                                ens <- getEntNamesInInv is
-                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> (e^.sing) <> " " <> target
-      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> (e^.sing) <> " " <> target
-      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
-  where
-    acp = [allChar]^.packed
-    target = case it of PlaInv -> "in your inventory."
-                        PlaEq  -> "in your readied equipment."
-                        RmInv  -> "in this room."
-
-
-checkFirst :: Ent -> [T.Text] -> T.Text
-checkFirst e ens = if length matches > 1 then "first " else ""
-  where
-    matches = filter (== e^.name) ens
+    shuffleInv es = do
+        let is = getEntIds es
+        em <- getPlaEqMap
+        let al = M.toList em
+        let al' = foldr (\(k, v) acc -> if v `elem` is then acc else (k, v) : acc) [] al -- TODO: Is there a better way to do this? Maybe using functions in Data.Map?
+        eqTbl.at 0 ?= M.fromList al'
+        addToInv is 0 >> lift ok
+unready (r:rs) = unready [r] >> unready rs
+unready _ = undefined
 
 
 okapi :: Action

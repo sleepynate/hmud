@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiWayIf, OverloadedStrings #-}
 
 module Mud.StateHelpers where
 
@@ -14,9 +14,9 @@ import Control.Monad.Trans.State
 import Data.Char (isDigit)
 import Data.List (delete, sort)
 import Data.Maybe (fromJust)
-import Data.Text.Read (decimal)
 import Data.Text.Strict.Lens (packed, unpacked)
-import qualified Data.Map as M
+import Data.Text.Read (decimal)
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
@@ -196,16 +196,8 @@ getInv i = do
     return (ws^.invTbl.at i.to fromJust)
 
 
-getEqMap :: Id -> StateT WorldState IO EqMap
-getEqMap i = do
-    ws <- get
-    return (ws^.eqTbl.at i.to fromJust)
-
-
-getEq :: Id -> StateT WorldState IO Inv
-getEq i = do
-    em <- getEqMap i
-    return (M.elems em)
+getPlaInv :: StateT WorldState IO Inv
+getPlaInv = getInv 0
 
 
 addToInv :: Inv -> Id -> StateT WorldState IO ()
@@ -225,8 +217,20 @@ moveInv [] _ _   = return ()
 moveInv is fi ti = remFromInv is fi >> addToInv is ti
 
 
-getPlaInv :: StateT WorldState IO Inv
-getPlaInv = getInv 0
+getEqMap :: Id -> StateT WorldState IO EqMap
+getEqMap i = do
+    ws <- get
+    return (ws^.eqTbl.at i.to fromJust)
+
+
+getPlaEqMap :: StateT WorldState IO EqMap
+getPlaEqMap = getEqMap 0
+
+
+getEq :: Id -> StateT WorldState IO Inv
+getEq i = do
+    em <- getEqMap i
+    return (M.elems em)
 
 
 getPlaEq :: StateT WorldState IO Inv

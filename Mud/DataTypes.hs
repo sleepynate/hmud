@@ -1,12 +1,11 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Mud.DataTypes where
 
 import Control.Lens (Lens', lens, makeLenses)
-import qualified Data.IntMap as IM
-import qualified Data.Map as M
+import qualified Data.IntMap.Strict as IM
+import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 
 -----
