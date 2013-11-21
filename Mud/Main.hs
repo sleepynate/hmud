@@ -116,6 +116,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "drop", action = dropAction, cmdDesc = "Drop items on the ground." }
           , Cmd { cmdName = "put", action = putAction, cmdDesc = "Put items in a container." }
           , Cmd { cmdName = "remove", action = remove, cmdDesc = "Remove items from a container." }
+          , Cmd { cmdName = "ready", action = ready, cmdDesc = "Ready items." }
           , Cmd { cmdName = "unready", action = unready, cmdDesc = "Unready items." }
           , Cmd { cmdName = "okapi", action = okapi, cmdDesc = "Make an okapi." }
           , Cmd { cmdName = "buffer", action = buffCheck, cmdDesc = "Confirm the default buffering mode." }
@@ -459,6 +460,21 @@ remHelper ci (r:rs) = do
     shuffleInv es = moveInv (getEntIds es) ci 0 >> lift ok >> next
 
 
+ready :: Action
+ready [""] = lift . T.putStrLn $ "What do you want to ready?"
+ready [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ readyHelper
+ready (r:rs) = ready [r] >> ready rs
+ready _ = undefined
+
+
+readyHelper :: [Ent] -> StateT WorldState IO ()
+readyHelper [e] = do
+    t <- getEntType e
+    case t of _ -> lift . T.putStrLn $ "You can't ready a " <> (e^.sing) <> "."
+readyHelper (e:_) = readyHelper [e]
+readyHelper _ = undefined
+
+
 unready :: Action
 unready [""] = lift . T.putStrLn $ "What do you want to unready?"
 unready [r]  = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
@@ -466,9 +482,8 @@ unready [r]  = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= t
     shuffleInv es = do
         let is = getEntIds es
         em <- getPlaEqMap
-        let al = M.toList em
-        let al' = foldr (\(k, v) acc -> if v `elem` is then acc else (k, v) : acc) [] al -- TODO: Is there a better way to do this? Maybe using functions in Data.Map?
-        eqTbl.at 0 ?= M.fromList al' >> addToInv is 0 >> lift ok
+        eqTbl.at 0 ?= M.filter (`notElem` is) em
+        addToInv is 0 >> lift ok
 unready (r:rs) = unready [r] >> unready rs
 unready _ = undefined
 
@@ -492,7 +507,12 @@ buffCheck _ = lift bufferCheckHelper
 
 
 dumpEnv :: Action
-dumpEnv _ = lift $ getEnvironment >>= dumpAssocList
+dumpEnv [""] = lift $ getEnvironment >>= dumpAssocList
+dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepBoth
+  where
+    grepBoth = \(k, v) -> r `T.isInfixOf` (k^.packed) || r `T.isInfixOf` (v^.packed)
+dumpEnv (r:rs) = dumpEnv [r] >> dumpEnv rs
+dumpEnv _ = undefined
 
 
 uptime :: Action
