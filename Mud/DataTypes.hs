@@ -100,11 +100,16 @@ data ArmSub = HeadA
 data Mob = Mob { _sex               :: Sex
                , _st, _dx, _iq, _ht :: Int
                , _hp, _fp           :: Int
-               , _xp                :: Int } deriving (Eq, Show)
+               , _xp                :: Int
+               , _hand              :: Hand } deriving (Eq, Show)
 
 data Sex = Male
          | Female
-         | NA deriving (Eq, Show)
+         | NoSex deriving (Eq, Show)
+
+data Hand = RHand
+          | LHand
+          | NoHand deriving (Eq, Show)
 
 -----
 

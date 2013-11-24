@@ -190,6 +190,12 @@ getEntType e = do
     return (ws^.typeTbl.at i.to fromJust)
 
 
+getWpn :: Id -> StateT WorldState IO Wpn
+getWpn i = do
+    ws <- get
+    return (ws^.wpnTbl.at i.to fromJust)
+
+
 getInv :: Id -> StateT WorldState IO Inv
 getInv i = do
     ws <- get
@@ -235,6 +241,46 @@ getEq i = do
 
 getPlaEq :: StateT WorldState IO Inv
 getPlaEq = getEq 0
+
+
+getMob :: Id -> StateT WorldState IO Mob
+getMob i = do
+    ws <- get
+    return (ws^.mobTbl.at i.to fromJust)
+
+
+getMobHand :: Id -> StateT WorldState IO Hand
+getMobHand i = do
+    m <- getMob i
+    return (m^.hand)
+
+
+getMobAvailHandSlot :: Id -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor.
+getMobAvailHandSlot i = do
+    h <- getMobHand i
+    if h == NoHand
+      then return Nothing
+      else do
+          em <- getEqMap i
+          let s = fromJust . getSlotForHand $ h
+          case em^.at s of Nothing -> return (Just s)
+                           Just _  -> let s' = fromJust . getSlotForHand . otherHand $ h
+                                      in case em^.at s' of Nothing -> return (Just s')
+                                                           Just _  -> return Nothing
+  where
+    otherHand h = case h of RHand -> LHand
+                            LHand -> RHand
+                            _ -> undefined
+
+
+getSlotForHand :: Hand -> Maybe Slot
+getSlotForHand h = case h of RHand  -> Just RHandS
+                             LHand  -> Just LHandS
+                             NoHand -> Nothing
+
+
+getPlaMobAvailHandSlot :: StateT WorldState IO (Maybe Slot)
+getPlaMobAvailHandSlot = getMobAvailHandSlot 0
 
 
 getPlaRmId :: StateT WorldState IO Id

@@ -9,7 +9,7 @@ import Mud.TheWorld
 
 import Control.Arrow (first)
 import Control.Lens (at, to)
-import Control.Lens.Operators ((^.), (.=), (?=))
+import Control.Lens.Operators ((&), (^.), (.=), (?=), (?~))
 import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
@@ -469,10 +469,32 @@ ready _ = undefined
 
 readyHelper :: [Ent] -> StateT WorldState IO ()
 readyHelper [e] = do
+    let i = e^.entId
+    em <- getPlaEqMap
     t <- getEntType e
-    case t of _ -> lift . T.putStrLn $ "You can't ready a " <> (e^.sing) <> "."
+    case t of WpnType -> readyWpn e i em
+              _       -> lift . T.putStrLn $ "You can't ready a " <> (e^.sing) <> "."
 readyHelper (e:_) = readyHelper [e]
 readyHelper _ = undefined
+
+
+readyWpn :: Ent -> Id -> EqMap -> StateT WorldState IO () -- TODO: Refactor. User should be able to specify hand.
+readyWpn e i em = do
+    ms <- getPlaMobAvailHandSlot
+    case ms of Nothing -> lift . T.putStrLn $ "You can't wield your " <> (e^.sing) <> " when your hands are full."
+               Just s  -> do
+                   w <- getWpn i
+                   let wt = w^.wpnSub
+                   case wt of OneHanded -> do
+                                  let em' = em & at s ?~ i
+                                  eqTbl.at 0 ?= em'
+                                  remFromInv [i] 0
+                                  lift . T.putStrLn $ "You wield your " <> (e^.sing) <> " with your " <> showHandSlot s <> "."
+                              _ -> undefined
+  where
+    showHandSlot s = case s of RHandS -> "right hand"
+                               LHandS -> "left hand"
+                               _ -> undefined
 
 
 unready :: Action

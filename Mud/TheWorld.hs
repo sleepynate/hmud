@@ -116,7 +116,7 @@ initPla = Pla { _rmId = iHill
 
 createWorld :: StateT WorldState IO ()
 createWorld = do
-    putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0)
+    putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 RHand)
 
     putRm  iHill [iGP1] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
 
@@ -137,6 +137,8 @@ createWorld = do
     putWpn iSword1 (Ent iSword1 "short" "short sword" "" "It's a sword; short but still sharp! It's silver." 0) (Obj 1 1) (Wpn OneHanded 1 10)
     putWpn iSword2 (Ent iSword2 "short" "short sword" "" "It's a sword; short but still sharp! It's gold." 0) (Obj 1 1) (Wpn OneHanded 1 10)
 
+    putWpn iClub (Ent iClub "club" "wooden club" "" "It's a crude wooden club; the type a neanderthal might use to great effect." 0) (Obj 1 1) (Wpn OneHanded 1 5)
+
 -----
 
 
@@ -156,7 +158,8 @@ mkOkapi = do
                 , _ht = 10
                 , _hp = 10
                 , _fp = 10
-                , _xp = 50 }
+                , _xp = 50
+                , _hand = NoHand }
     putMob i e [] (M.fromList []) m
     addToInv [i] iHill
     return i
