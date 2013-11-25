@@ -51,14 +51,15 @@ data Obj = Obj { _weight  :: Int
 data Cloth = Cloth ClothSub deriving (Eq, Show)
 
 data ClothSub = HeadC
+              | EarNoseC
               | NeckC
               | WristC
               | FingerC
-              | FeetC
-              | BackC
               | UpBodyC
               | LowBodyC
-              | FullBodyC deriving (Eq, Show)
+              | FullBodyC
+              | BackC
+              | FeetC deriving (Eq, Show)
 
 -----
 
@@ -124,8 +125,8 @@ data Race = Human
           | Halfling
           | Nymph
           | Felinoid
-          | Lagomorph
-          | Vulpenoid deriving (Eq, Show)
+          | Vulpenoid
+          | Lagomorph deriving (Eq, Show)
 
 ----
 
@@ -152,41 +153,49 @@ type Inv = [Id]
 type EqMap = M.Map Slot Id
 
 data Slot = HeadS
-          | NeckS
-          | RWristS
-          | LWristS
-          | FingersS
+          | REar1S | REar2S
+          | LEar1S | LEar2S
+          | Nose1S | Nose2S
+          | Neck1S | Neck2S | Neck3S
+          | RWrist1S | RWrist2S | RWrist3S
+          | LWrist1S | LWrist2S | LWrist3S
+          | RIndexFS | RMidFS | RRingFS | RPinkyFS
+          | LIndexFS | LMidFS | LRingFS | LPinkyFS
           | RHandS
           | LHandS
           | BothHandsS
-          | FeetS
-          | BackS
           | UpBodyCS
           | LowBodyCS
           | FullBodyCS
           | UpBodyAS
           | LowBodyAS
-          | FullBodyAS deriving (Eq, Show, Ord)
+          | FullBodyAS
+          | BackS
+          | FeetS deriving (Eq, Show, Ord)
 
 type SlotName = T.Text
 
 slotNamesMap :: M.Map Slot SlotName
 slotNamesMap = M.fromList [ (HeadS,      "head")
-                          , (NeckS,      "neck")
-                          , (RWristS,    "right wrist")
-                          , (LWristS,    "left wrist")
-                          , (FingersS,   "finger")
+                          , (REar1S,     "right ear" ), (REar2S, "right ear")
+                          , (LEar1S,     "left ear"),   (LEar2S, "left ear")
+                          , (Nose1S,     "nose"), (Nose2S, "nose")
+                          , (Neck1S,     "neck"), (Neck2S, "neck"), (Neck3S, "neck")
+                          , (RWrist1S,   "right wrist"), (RWrist2S, "right wrist"), (RWrist3S, "right wrist")
+                          , (LWrist1S,   "left wrist"),  (LWrist2S, "left wrist"),  (LWrist3S, "left wrist")
+                          , (RIndexFS,   "right index finger"), (RMidFS, "right middle finger"), (RRingFS, "right ring finger"), (RPinkyFS, "right pinky finger")
+                          , (LIndexFS,   "left index finger"),  (LMidFS, "left middle finger"),  (LRingFS, "left ring finger"),  (LPinkyFS, "left pinky finger")
                           , (RHandS,     "right hand")
                           , (LHandS,     "left hand")
                           , (BothHandsS, "both hands")
-                          , (FeetS,      "feet")
-                          , (BackS,      "back")
                           , (UpBodyCS,   "upper body")
                           , (LowBodyCS,  "lower body")
                           , (FullBodyCS, "full body")
                           , (UpBodyAS,   "upper body")
                           , (LowBodyAS,  "lower body")
-                          , (FullBodyAS, "full body") ]
+                          , (FullBodyAS, "full body")
+                          , (BackS,      "back")
+                          , (FeetS,      "feet") ]
 
 -----
 
