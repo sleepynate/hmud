@@ -25,6 +25,7 @@ import qualified Data.Text.IO as T
 -- General purpose convenience methods:
 
 
+infixr 7 <>
 (<>) :: T.Text -> T.Text -> T.Text
 (<>) = T.append
 
@@ -117,7 +118,7 @@ slotChar   = ':'
 
 getEntsInInvByName :: T.Text -> Inv -> StateT WorldState IO GetEntResult
 getEntsInInvByName searchName is
-  | searchName == ([allChar]^.packed) = liftM (Mult searchName . Just) $ getEntsInInv is
+  | searchName == [allChar]^.packed = liftM (Mult searchName . Just) $ getEntsInInv is
   | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
   | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
                                       noInt = either undefined fst $ decimal noText

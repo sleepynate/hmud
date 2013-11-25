@@ -10,13 +10,13 @@ import Mud.TheWorld
 import Control.Arrow (first)
 import Control.Lens (at, to)
 import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
-import Control.Monad (forM_, when)
+import Control.Monad (forM_, when, void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (toUpper)
 import Data.Foldable (traverse_)
 import Data.List (delete, nub, sort)
-import Data.Maybe (fromJust, isNothing)
+import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -129,7 +129,7 @@ welcomeMsg :: IO ()
 welcomeMsg = do
     un <- getEnv "USER"
     mn <- whatsMyName
-    T.putStrLn $ "Hello, " <> (un^.packed) <> ". Welcome to " <> quote mn <> " ver " <> ver <> ".\n"
+    T.putStrLn $ "Hello, " <> un^.packed <> ". Welcome to " <> quote mn <> " ver " <> ver <> ".\n"
   where
     whatsMyName = getProgName >>= \mn -> return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
 
@@ -227,8 +227,8 @@ whatInv it r = do
                              then lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> (makePlurFromBoth . getEntBothGramNos $ e) <> " " <> target
                              else do
                                 ens <- getEntNamesInInv is
-                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> (e^.sing) <> " " <> target
-      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> (e^.sing) <> " " <> target
+                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> e^.sing <> " " <> target
+      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> e^.sing <> " " <> target
       _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
   where
     acp = [allChar]^.packed
@@ -309,10 +309,10 @@ descEntsInInvForId i = do
   where
     none
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
-      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " is empty."
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " is empty."
     header
       | i == 0 = lift . T.putStrLn $ "You are carrying:"
-      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " contains:"
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " contains:"
     descEntInInv (x, (s, _)) | x == 1 = lift . T.putStrLn $ "1 " <> s
     descEntInInv (x, both) = lift . T.putStrLn $ showText x <> " " <> makePlurFromBoth both
 
@@ -341,16 +341,16 @@ descEq i = do
     mkEqDescList = mapM descEqHelper
     none
       | i == 0    = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
-      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " doesn't have anything readied."
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " doesn't have anything readied."
     header
       | i == 0    = lift . T.putStrLn $ "You have readied the following equipment:"
-      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> (e^.sing) <> " has readied the following equipment:"
+      | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " has readied the following equipment:"
 
 
 descEqHelper :: (SlotName, Id) -> StateT WorldState IO T.Text
 descEqHelper (sn, i) = do
     e <- getEnt i
-    return ("[" <> sn <> "] " <> ([tab]^.packed) <> (e^.sing))
+    return ("[" <> sn <> "] " <> [tab]^.packed <> e^.sing)
 
 
 getAction :: Action
@@ -404,7 +404,7 @@ putRemDispatcher por (r:rs) = do
                                 let e = head es
                                 t <- getEntType e
                                 if t /= ConType
-                                  then lift . T.putStrLn $ "The " <> (e^.sing) <> " isn't a container."
+                                  then lift . T.putStrLn $ "The " <> e^.sing <> " isn't a container."
                                   else dispatchToHelper (e^.entId)
   where
     findCon cn
@@ -429,7 +429,7 @@ putHelper ci (r:rs) = do
                     if ci `elem` is
                       then do
                           e <- getEnt ci
-                          lift . T.putStrLn $ "You can't put the " <> (e^.sing) <> " inside itself."
+                          lift . T.putStrLn $ "You can't put the " <> e^.sing <> " inside itself."
                           let is' = filter (/= ci) is
                           if null is'
                             then next
@@ -445,7 +445,7 @@ remHelper ci (r:rs) = do
     e <- getEnt ci
     fis <- getInv ci
     if null fis
-      then lift . T.putStrLn $ "The " <> (e^.sing) <> " appears to be empty."
+      then lift . T.putStrLn $ "The " <> e^.sing <> " appears to be empty."
       else getEntsInInvByName r fis >>= procGetEntResCon (e^.sing) r >>= maybe next shuffleInv
   where
     next = remHelper ci rs
@@ -466,30 +466,32 @@ readyDispatcher (Just e, ms) = do
     em <- getPlaEqMap
     t <- getEntType e
     case t of WpnType -> readyWpn i e em ms
-              _       -> lift . T.putStrLn $ "You can't ready a " <> (e^.sing) <> "."
+              _       -> lift . T.putStrLn $ "You can't ready a " <> e^.sing <> "."
 
 
-readyWpn :: Id -> Ent -> EqMap -> Maybe Slot -> StateT WorldState IO () -- TODO: Refactor? Shouldn't be able to wield one-handed wpn when already wielding a two-handed wpn.
-readyWpn i e em ms = do
-    ms' <- case ms of Just s  -> getDesigHandSlot em s
-                      Nothing -> getAvailHandSlot em
-    case ms' of Nothing -> return ()
-                Just s  -> do
-                    w <- getWpn i
-                    let wt = w^.wpnSub
-                    case wt of OneHanded -> do
-                                   let em' = em & at s ?~ i
-                                   eqTbl.at 0 ?= em'
-                                   remFromInv [i] 0
-                                   lift . T.putStrLn $ "You wield the " <> (e^.sing) <> " with your " <> showHandSlot s <> "."
-                               TwoHanded -> do
-                                   if areBothHandsAvail
-                                    then do
-                                        let em' = em & at BothHandsS ?~ i
-                                        eqTbl.at 0 ?= em'
-                                        remFromInv [i] 0
-                                        lift . T.putStrLn $ "You wield the " <> (e^.sing) <> " with both hands."
-                                    else lift . T.putStrLn $ "Both hands are required to weild the " <> (e^.sing) <> "."
+readyWpn :: Id -> Ent -> EqMap -> Maybe Slot -> StateT WorldState IO () -- TODO: Refactor?
+readyWpn i e em ms
+  | isJust (em^.at BothHandsS) = void . lift . T.putStrLn $ "You're already wielding a two-handed weapon."
+  | otherwise = do
+      ms' <- case ms of Just s  -> getDesigHandSlot em s
+                        Nothing -> getAvailHandSlot em
+      case ms' of Nothing -> return ()
+                  Just s  -> do
+                      w <- getWpn i
+                      let wt = w^.wpnSub
+                      case wt of OneHanded -> do
+                                     let em' = em & at s ?~ i
+                                     eqTbl.at 0 ?= em'
+                                     remFromInv [i] 0
+                                     lift . T.putStrLn $ "You wield the " <> e^.sing <> " with your " <> showHandSlot s <> "."
+                                 TwoHanded -> do
+                                     if areBothHandsAvail
+                                      then do
+                                          let em' = em & at BothHandsS ?~ i
+                                          eqTbl.at 0 ?= em'
+                                          remFromInv [i] 0
+                                          lift . T.putStrLn $ "You wield the " <> e^.sing <> " with both hands."
+                                      else lift . T.putStrLn $ "Both hands are required to weild the " <> e^.sing <> "."
   where
     areBothHandsAvail = isSlotAvail RHandS && isSlotAvail LHandS
     isSlotAvail s = isNothing $ em^.at s
@@ -503,9 +505,9 @@ showHandSlot s = case s of RHandS -> "right hand"
 
 getDesigHandSlot :: EqMap -> Slot -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
 getDesigHandSlot em s = case em^.at s of Nothing -> return (Just s)
-                                         Just _  -> sorry
+                                         Just i  -> getEnt i >>= sorry
   where
-    sorry = lift $ T.putStrLn ("You already have something in your " <> showHandSlot s <> ".") >> return Nothing
+    sorry e = lift $ T.putStrLn ("You're already wielding a " <> e^.sing <> " with your " <> showHandSlot s <> ".") >> return Nothing
 
 
 getAvailHandSlot :: EqMap -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
@@ -558,7 +560,7 @@ buffCheck _ = lift buffCheckHelper
         td <- getTemporaryDirectory
         (fn, h) <- openTempFile td "temp"
         bm <- hGetBuffering h
-        T.putStrLn $ "(Default) buffering mode for temp file " <> (fn^.packed.to quote) <> " is " <> (quote . showText $ bm) <> "."
+        T.putStrLn $ "(Default) buffering mode for temp file " <> fn^.packed.to quote <> " is " <> (quote . showText $ bm) <> "."
         hClose h
         removeFile fn
 
@@ -580,4 +582,4 @@ uptime _ = do
                    a' = unwords . tail . words $ a
                    b' = takeWhile (/= ',') . tail $ b
                    c  = (toUpper . head $ a') : (tail a')
-               in (c^.packed) <> (b'^.packed) <> "."
+               in c^.packed <> b'^.packed <> "."
