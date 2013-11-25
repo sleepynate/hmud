@@ -9,14 +9,14 @@ import Mud.TheWorld
 
 import Control.Arrow (first)
 import Control.Lens (at, to)
-import Control.Lens.Operators ((&), (^.), (.=), (?=), (?~))
+import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
 import Control.Monad (forM_, when)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (toUpper)
 import Data.Foldable (traverse_)
 import Data.List (delete, nub, sort)
-import Data.Maybe (fromJust)
+import Data.Maybe (fromJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -56,14 +56,6 @@ newLine = putChar nl
 
 ok :: IO ()
 ok = T.putStrLn "Ok."
-
-
-quote :: T.Text -> T.Text
-quote t = T.concat ["\"", t, "\""]
-
-
-unquote :: T.Text -> T.Text
-unquote = T.init . T.tail
 
 
 dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
@@ -462,39 +454,82 @@ remHelper ci (r:rs) = do
 
 ready :: Action
 ready [""] = lift . T.putStrLn $ "What do you want to ready?"
-ready [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ readyHelper
+ready [r]  = getEntToReady r >>= readyDispatcher
 ready (r:rs) = ready [r] >> ready rs
 ready _ = undefined
 
 
-readyHelper :: [Ent] -> StateT WorldState IO ()
-readyHelper [e] = do
+readyDispatcher :: (Maybe Ent, Maybe Slot) -> StateT WorldState IO () -- TODO: Refactor?
+readyDispatcher (Nothing, _) = return ()
+readyDispatcher (Just e, ms) = do
     let i = e^.entId
     em <- getPlaEqMap
     t <- getEntType e
-    case t of WpnType -> readyWpn e i em
+    case t of WpnType -> readyWpn i e em ms
               _       -> lift . T.putStrLn $ "You can't ready a " <> (e^.sing) <> "."
-readyHelper (e:_) = readyHelper [e]
-readyHelper _ = undefined
 
 
-readyWpn :: Ent -> Id -> EqMap -> StateT WorldState IO () -- TODO: Refactor. User should be able to specify hand.
-readyWpn e i em = do
-    ms <- getPlaMobAvailHandSlot
-    case ms of Nothing -> lift . T.putStrLn $ "You can't wield your " <> (e^.sing) <> " when your hands are full."
-               Just s  -> do
-                   w <- getWpn i
-                   let wt = w^.wpnSub
-                   case wt of OneHanded -> do
-                                  let em' = em & at s ?~ i
-                                  eqTbl.at 0 ?= em'
-                                  remFromInv [i] 0
-                                  lift . T.putStrLn $ "You wield your " <> (e^.sing) <> " with your " <> showHandSlot s <> "."
-                              _ -> undefined
+readyWpn :: Id -> Ent -> EqMap -> Maybe Slot -> StateT WorldState IO () -- TODO: Refactor? Shouldn't be able to wield one-handed wpn when already wielding a two-handed wpn.
+readyWpn i e em ms = do
+    ms' <- case ms of Just s  -> getDesigHandSlot em s
+                      Nothing -> getAvailHandSlot em
+    case ms' of Nothing -> return ()
+                Just s  -> do
+                    w <- getWpn i
+                    let wt = w^.wpnSub
+                    case wt of OneHanded -> do
+                                   let em' = em & at s ?~ i
+                                   eqTbl.at 0 ?= em'
+                                   remFromInv [i] 0
+                                   lift . T.putStrLn $ "You wield the " <> (e^.sing) <> " with your " <> showHandSlot s <> "."
+                               TwoHanded -> do
+                                   if areBothHandsAvail
+                                    then do
+                                        let em' = em & at BothHandsS ?~ i
+                                        eqTbl.at 0 ?= em'
+                                        remFromInv [i] 0
+                                        lift . T.putStrLn $ "You wield the " <> (e^.sing) <> " with both hands."
+                                    else lift . T.putStrLn $ "Both hands are required to weild the " <> (e^.sing) <> "."
   where
-    showHandSlot s = case s of RHandS -> "right hand"
-                               LHandS -> "left hand"
-                               _ -> undefined
+    areBothHandsAvail = isSlotAvail RHandS && isSlotAvail LHandS
+    isSlotAvail s = isNothing $ em^.at s
+
+
+showHandSlot :: Slot -> T.Text
+showHandSlot s = case s of RHandS -> "right hand"
+                           LHandS -> "left hand"
+                           _ -> undefined
+
+
+getDesigHandSlot :: EqMap -> Slot -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
+getDesigHandSlot em s = case em^.at s of Nothing -> return (Just s)
+                                         Just _  -> sorry
+  where
+    sorry = lift $ T.putStrLn ("You already have something in your " <> showHandSlot s <> ".") >> return Nothing
+
+
+getAvailHandSlot :: EqMap -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
+getAvailHandSlot em = do
+    h <- getPlaMobHand
+    let s = getSlotForHand h
+    case em^.at s of Nothing -> return (Just s)
+                     Just _  -> let s' = getSlotForOtherHand h
+                                in case em^.at s' of Nothing -> return (Just s')
+                                                     Just _  -> sorry
+  where
+    sorry = lift $ T.putStrLn "Your hands are already full." >> return Nothing
+
+
+getSlotForHand :: Hand -> Slot
+getSlotForHand h = case h of RHand -> RHandS
+                             LHand -> LHandS
+                             _ -> undefined
+
+
+getSlotForOtherHand :: Hand -> Slot
+getSlotForOtherHand h = case h of RHand -> LHandS
+                                  LHand -> RHandS
+                                  _ -> undefined
 
 
 unready :: Action
@@ -517,9 +552,9 @@ okapi _ = do
 
 
 buffCheck :: Action
-buffCheck _ = lift bufferCheckHelper
+buffCheck _ = lift buffCheckHelper
   where
-    bufferCheckHelper = do
+    buffCheckHelper = do
         td <- getTemporaryDirectory
         (fn, h) <- openTempFile td "temp"
         bm <- hGetBuffering h

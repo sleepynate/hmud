@@ -34,3 +34,5 @@ iSword1 = 11 :: Int
 iSword2 = 12 :: Int
 
 iClub = 13 :: Int
+
+iBastard = 14 :: Int

@@ -40,6 +40,14 @@ aOrAn t
   | otherwise = "a " <> t
 
 
+quote :: T.Text -> T.Text
+quote t = T.concat ["\"", t, "\""]
+
+
+unquote :: T.Text -> T.Text
+unquote = T.init . T.tail
+
+
 findAbbrev :: T.Text -> [T.Text] -> Maybe T.Text
 findAbbrev needle hay = if null res then Nothing else Just . head $ res
   where
@@ -100,10 +108,11 @@ data GetEntResult = Mult NameSearchedFor (Maybe [Ent])
                   | Indexed Index NameSearchedFor (Either Plur Ent)
                   | Sorry
 
-allChar, amountChar, indexChar :: Char
+allChar, amountChar, indexChar, slotChar :: Char
 allChar    = '\''
 amountChar = '/'
 indexChar  = '.'
+slotChar   = ':'
 
 
 getEntsInInvByName :: T.Text -> Inv -> StateT WorldState IO GetEntResult
@@ -183,6 +192,30 @@ procGetEntResCon cn r res = case res of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
+getEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent, Maybe Slot) -- TODO: Refactor?
+getEntToReady searchName
+  | slotChar `elem` searchName^.unpacked = do
+      let (xs, ys) = T.break (== slotChar) searchName
+      if ys == [slotChar]^.packed
+        then sorry
+        else case (T.toLower . T.tail $ ys) of "r" -> getEntToReadyHelper (Just RHandS) xs
+                                               "l" -> getEntToReadyHelper (Just LHandS) xs
+                                               _   -> sorry
+  | otherwise = getEntToReadyHelper Nothing searchName
+  where
+    sorry = lift $ T.putStrLn sorryMsg >> return (Nothing, Nothing)
+    sorryMsg = T.concat ["Please specify ", quote "r", " or ", quote "l", " after ", quote ([slotChar]^.packed), "."]
+
+
+getEntToReadyHelper :: Maybe Slot -> T.Text -> StateT WorldState IO (Maybe Ent, Maybe Slot) -- TODO: Refactor?
+getEntToReadyHelper s searchName = do
+    mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
+    case mes of Nothing    -> return (Nothing, s)
+                Just [e]   -> return (Just e, s)
+                Just (e:_) -> return (Just e, s)
+                _ -> undefined
+
+
 getEntType :: Ent -> StateT WorldState IO Type
 getEntType e = do
     ws <- get
@@ -255,32 +288,8 @@ getMobHand i = do
     return (m^.hand)
 
 
-getMobAvailHandSlot :: Id -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor.
-getMobAvailHandSlot i = do
-    h <- getMobHand i
-    if h == NoHand
-      then return Nothing
-      else do
-          em <- getEqMap i
-          let s = fromJust . getSlotForHand $ h
-          case em^.at s of Nothing -> return (Just s)
-                           Just _  -> let s' = fromJust . getSlotForHand . otherHand $ h
-                                      in case em^.at s' of Nothing -> return (Just s')
-                                                           Just _  -> return Nothing
-  where
-    otherHand h = case h of RHand -> LHand
-                            LHand -> RHand
-                            _ -> undefined
-
-
-getSlotForHand :: Hand -> Maybe Slot
-getSlotForHand h = case h of RHand  -> Just RHandS
-                             LHand  -> Just LHandS
-                             NoHand -> Nothing
-
-
-getPlaMobAvailHandSlot :: StateT WorldState IO (Maybe Slot)
-getPlaMobAvailHandSlot = getMobAvailHandSlot 0
+getPlaMobHand :: StateT WorldState IO Hand
+getPlaMobHand = getMobHand 0
 
 
 getPlaRmId :: StateT WorldState IO Id
