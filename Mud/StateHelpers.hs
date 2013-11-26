@@ -50,6 +50,10 @@ bracketQuote :: T.Text -> T.Text
 bracketQuote t = T.concat ["[", t, "]"]
 
 
+parensQuote :: T.Text -> T.Text
+parensQuote t = T.concat ["(", t, ")"]
+
+
 unquote :: T.Text -> T.Text
 unquote = T.init . T.tail
 

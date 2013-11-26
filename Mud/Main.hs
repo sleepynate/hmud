@@ -198,7 +198,7 @@ dumpFile fn = T.putStr =<< T.readFile fn
 data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 
-what :: Action -- TODO: Items should not be referred to by their sing names.
+what :: Action
 what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
 what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
 what (r:rs) = what [r] >> lift newLine >> what rs
@@ -219,22 +219,25 @@ whatInv it r = do
                      RmInv  -> getPlaRmInv
     ger <- getEntsInInvByName r is
     case ger of
-      (Mult n (Just es)) | n == acp -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> target
+      (Mult n (Just es)) | n == acp  -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> loc
                          | otherwise ->
                            let e = head es
                                len = length es
                            in if len > 1
-                             then lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> (makePlurFromBoth . getEntBothGramNos $ e) <> " " <> target
+                             then let ebgns = take len [ getEntBothGramNos e' | e' <- es ]
+                                      h = head ebgns
+                                      target = if all (== h) ebgns then makePlurFromBoth h else bracketQuote $ e^.name
+                                  in lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> target <> " " <> loc
                              else do
-                                ens <- getEntNamesInInv is
-                                lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> e^.sing <> " " <> target
-      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> e^.sing <> " " <> target
-      _ -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> target
+                                 ens <- getEntNamesInInv is
+                                 lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> e^.sing <> " " <> loc
+      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> bracketQuote (e^.name) <> " " <> parensQuote (e^.sing) <> " " <> loc
+      _                       -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> loc
   where
     acp = [allChar]^.packed
-    target = case it of PlaInv -> "in your inventory."
-                        PlaEq  -> "in your readied equipment."
-                        RmInv  -> "in this room."
+    loc = case it of PlaInv -> "in your inventory."
+                     PlaEq  -> "in your readied equipment."
+                     RmInv  -> "in this room."
 
 
 checkFirst :: Ent -> [T.Text] -> T.Text
