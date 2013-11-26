@@ -51,7 +51,8 @@ data Obj = Obj { _weight  :: Int
 data Cloth = Cloth ClothSub deriving (Eq, Show)
 
 data ClothSub = HeadC
-              | EarNoseC
+              | EarC
+              | NoseC
               | NeckC
               | WristC
               | FingerC

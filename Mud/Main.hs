@@ -15,7 +15,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (toUpper)
 import Data.Foldable (traverse_)
-import Data.List (delete, nub, sort)
+import Data.List (delete, find, nub, sort)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
@@ -454,64 +454,77 @@ remHelper ci (r:rs) = do
 
 ready :: Action
 ready [""] = lift . T.putStrLn $ "What do you want to ready?"
-ready [r]  = getEntToReady r >>= readyDispatcher
+ready [r]  = getEntToReadyByName r >>= readyDispatcher
 ready (r:rs) = ready [r] >> ready rs
 ready _ = undefined
 
 
-readyDispatcher :: (Maybe Ent, Maybe Slot) -> StateT WorldState IO () -- TODO: Refactor?
+readyDispatcher :: (Maybe Ent, Maybe RightOrLeft) -> StateT WorldState IO () -- TODO: Refactor?
 readyDispatcher (Nothing, _) = return ()
-readyDispatcher (Just e, ms) = do
+readyDispatcher (Just e, mrol) = do
     let i = e^.entId
     em <- getPlaEqMap
     t <- getEntType e
-    case t of WpnType -> readyWpn i e em ms
-              _       -> lift . T.putStrLn $ "You can't ready a " <> e^.sing <> "."
+    case t of ClothType -> readyCloth i e em mrol
+              WpnType   -> readyWpn i e em mrol
+              ArmType   -> undefined
+              _         -> lift . T.putStrLn $ "You can't ready a " <> e^.sing <> "."
 
 
-readyWpn :: Id -> Ent -> EqMap -> Maybe Slot -> StateT WorldState IO () -- TODO: Refactor?
-readyWpn i e em ms
+isRingROL :: RightOrLeft -> Bool
+isRingROL rol = case rol of R -> False
+                            L -> False
+                            _ -> True
+
+
+isSlotAvail :: EqMap -> Slot -> Bool
+isSlotAvail em s = isNothing $ em^.at s
+
+
+findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
+findAvailSlot em = find (isSlotAvail em)
+
+
+readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> StateT WorldState IO () -- TODO: Refactor?
+readyWpn i e em mrol
   | isJust (em^.at BothHandsS) = void . lift . T.putStrLn $ "You're already wielding a two-handed weapon."
   | otherwise = do
-      ms' <- case ms of Just s  -> getDesigHandSlot em s
-                        Nothing -> getAvailHandSlot em
-      case ms' of Nothing -> return ()
-                  Just s  -> do
-                      w <- getWpn i
-                      let wt = w^.wpnSub
-                      case wt of OneHanded -> do
-                                     let em' = em & at s ?~ i
-                                     eqTbl.at 0 ?= em'
-                                     remFromInv [i] 0
-                                     lift . T.putStrLn $ "You wield the " <> e^.sing <> " with your " <> showHandSlot s <> "."
-                                 TwoHanded -> do
-                                     if areBothHandsAvail
+      ms <- case mrol of Just rol -> getDesigWpnSlot e em rol
+                         Nothing  -> getAvailWpnSlot em
+      case ms of Nothing -> return ()
+                 Just s  -> do
+                     w <- getWpn i
+                     let wt = w^.wpnSub
+                     case wt of OneHanded -> do
+                                    let em' = em & at s ?~ i
+                                    eqTbl.at 0 ?= em'
+                                    remFromInv [i] 0
+                                    lift . T.putStrLn $ "You wield the " <> e^.sing <> " with your " <> slotNamesMap^.at s.to fromJust <> "."
+                                TwoHanded -> do
+                                    if all (isSlotAvail em) [RHandS, LHandS]
                                       then do
                                           let em' = em & at BothHandsS ?~ i
                                           eqTbl.at 0 ?= em'
                                           remFromInv [i] 0
                                           lift . T.putStrLn $ "You wield the " <> e^.sing <> " with both hands."
                                       else lift . T.putStrLn $ "Both hands are required to weild the " <> e^.sing <> "."
+
+
+getDesigWpnSlot :: Ent -> EqMap -> RightOrLeft -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
+getDesigWpnSlot e em rol
+  | isRingROL rol = sorryNotRing
+  | otherwise = let s = case rol of R -> RHandS
+                                    L -> LHandS
+                                    _ -> undefined
+                in case em^.at s of Nothing -> return (Just s)
+                                    Just i  -> getEnt i >>= sorry s
   where
-    areBothHandsAvail = isSlotAvail RHandS && isSlotAvail LHandS
-    isSlotAvail s = isNothing $ em^.at s
+    sorry s e'   = lift $ T.putStrLn ("You're already wielding a " <> e'^.sing <> " with your " <> slotNamesMap^.at s.to fromJust <> ".") >> return Nothing
+    sorryNotRing = lift $ T.putStrLn ("You can't wield a " <> e^.sing <> " with your finger!") >> return Nothing
 
 
-showHandSlot :: Slot -> T.Text
-showHandSlot s = case s of RHandS -> "right hand"
-                           LHandS -> "left hand"
-                           _ -> undefined
-
-
-getDesigHandSlot :: EqMap -> Slot -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
-getDesigHandSlot em s = case em^.at s of Nothing -> return (Just s)
-                                         Just i  -> getEnt i >>= sorry
-  where
-    sorry e = lift $ T.putStrLn ("You're already wielding a " <> e^.sing <> " with your " <> showHandSlot s <> ".") >> return Nothing
-
-
-getAvailHandSlot :: EqMap -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
-getAvailHandSlot em = do
+getAvailWpnSlot :: EqMap -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
+getAvailWpnSlot em = do
     h <- getPlaMobHand
     let s = getSlotForHand h
     case em^.at s of Nothing -> return (Just s)
@@ -519,19 +532,52 @@ getAvailHandSlot em = do
                                 in case em^.at s' of Nothing -> return (Just s')
                                                      Just _  -> sorry
   where
-    sorry = lift $ T.putStrLn "Your hands are already full." >> return Nothing
+    getSlotForHand h = case h of RHand -> RHandS
+                                 LHand -> LHandS
+                                 _ -> undefined
+    getSlotForOtherHand h = case h of RHand -> LHandS
+                                      LHand -> RHandS
+                                      _ -> undefined
+    sorry = lift $ T.putStrLn "You're already wielding two weapons." >> return Nothing
 
 
-getSlotForHand :: Hand -> Slot
-getSlotForHand h = case h of RHand -> RHandS
-                             LHand -> LHandS
-                             _ -> undefined
+readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> StateT WorldState IO () -- TODO: Refactor?
+readyCloth i e em mrol = do
+    ms <- case mrol of Just rol -> getDesigClothSlot i e em rol
+                       Nothing  -> undefined --getAvailClothSlot em
+    case ms of Nothing -> return ()
+               Just _  -> undefined
 
 
-getSlotForOtherHand :: Hand -> Slot
-getSlotForOtherHand h = case h of RHand -> LHandS
-                                  LHand -> RHandS
-                                  _ -> undefined
+getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
+getDesigClothSlot i e em rol = do
+    c <- getCloth i
+    let Cloth ct = c
+    case ct of FingerC -> if not . isRingROL $ rol
+                            then sorryIsRing
+                            else let rs = case rol of RIF -> RIndexFS
+                                                      RMF -> RMidFS
+                                                      RRF -> RRingFS
+                                                      RPF -> RPinkyFS
+                                                      LIF -> LIndexFS
+                                                      LMF -> LMidFS
+                                                      LRF -> LRingFS
+                                                      LPF -> LPinkyFS
+                                                      _ -> undefined
+                                 in case em^.at rs of Nothing -> return (Just rs)
+                                                      Just i' -> getEnt i' >>= sorry rs
+               WristC  -> if isRingROL rol
+                            then sorryNotRing
+                            else let mws = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
+                                                       L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
+                                                       _ -> undefined
+                                 in if isNothing mws then sorryWrist else return mws
+               _ -> undefined
+  where
+    sorry s e'   = lift $ T.putStrLn ("You're already wearing a " <> e'^.sing <> " on your " <> slotNamesMap^.at s.to fromJust <> ".") >> return Nothing
+    sorryIsRing  = lift $ T.putStrLn ringHelp >> return Nothing
+    sorryNotRing = lift $ T.putStrLn ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
+    sorryWrist   = lift $ T.putStrLn "You're already wearing three accessories on your wrist. Any more would just be uncomfortable!" >> return Nothing
 
 
 unready :: Action

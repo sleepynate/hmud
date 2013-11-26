@@ -193,27 +193,56 @@ procGetEntResCon cn r res = case res of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-getEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent, Maybe Slot) -- TODO: Refactor?
-getEntToReady searchName
+data RightOrLeft = R
+                 | L
+                 | RIF | RMF | RRF | RPF
+                 | LIF | LMF | LRF | LPF
+
+
+getEntToReadyByName :: T.Text -> StateT WorldState IO (Maybe Ent, Maybe RightOrLeft) -- TODO: Refactor?
+getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = do
       let (xs, ys) = T.break (== slotChar) searchName
-      if ys == [slotChar]^.packed
-        then sorry
-        else case (T.toLower . T.tail $ ys) of "r" -> getEntToReadyHelper (Just RHandS) xs
-                                               "l" -> getEntToReadyHelper (Just LHandS) xs
-                                               _   -> sorry
-  | otherwise = getEntToReadyHelper Nothing searchName
+      if T.length ys == 1 then sorry else do
+          me <- findEntToReady xs
+          case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
+                                            "l"   -> return (me, Just L)
+                                            "rif" -> return (me, Just RIF)
+                                            "rmf" -> return (me, Just RMF)
+                                            "rrf" -> return (me, Just RRF)
+                                            "rpf" -> return (me, Just RPF)
+                                            "lif" -> return (me, Just LIF)
+                                            "lmf" -> return (me, Just LMF)
+                                            "lrf" -> return (me, Just LRF)
+                                            "lpf" -> return (me, Just LPF)
+                                            _     -> sorry
+  | otherwise = do
+      me <- findEntToReady searchName
+      return (me, Nothing)
   where
     sorry = lift $ T.putStrLn sorryMsg >> return (Nothing, Nothing)
-    sorryMsg = T.concat ["Please specify ", quote "r", " or ", quote "l", " after ", quote ([slotChar]^.packed), "."]
+    sorryMsg = T.concat [ "Please specify ", quote slotR, " or ", quote slotL, ".\n", ringHelp ]
 
 
-getEntToReadyHelper :: Maybe Slot -> T.Text -> StateT WorldState IO (Maybe Ent, Maybe Slot) -- TODO: Refactor?
-getEntToReadyHelper s searchName = do
+ringHelp :: T.Text
+ringHelp = T.concat [ "For rings, specify ", quote slotR, " or ", quote slotL, " immediately followed by:\n"
+                    , quote "if", " for index finger,\n"
+                    , quote "mf", " for middle finter,\n"
+                    , quote "rf", " for ring finger,\n"
+                    , quote "pf", " for pinky finger." ]
+
+
+slotR, slotL :: T.Text
+slotR = (slotChar : "r")^.packed
+slotL = (slotChar : "l")^.packed
+
+
+findEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent) -- TODO: Refactor?
+findEntToReady searchName = do
     mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
-    case mes of Nothing    -> return (Nothing, s)
-                Just [e]   -> return (Just e, s)
-                Just (e:_) -> return (Just e, s)
+    case mes of Nothing    -> return Nothing
+                Just [e]   -> return (Just e)
+                Just (e:_) -> return (Just e)
                 _ -> undefined
 
 
@@ -222,6 +251,12 @@ getEntType e = do
     ws <- get
     let i = e^.entId
     return (ws^.typeTbl.at i.to fromJust)
+
+
+getCloth :: Id -> StateT WorldState IO Cloth
+getCloth i = do
+    ws <- get
+    return (ws^.clothTbl.at i.to fromJust)
 
 
 getWpn :: Id -> StateT WorldState IO Wpn
