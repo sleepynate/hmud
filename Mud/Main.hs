@@ -122,7 +122,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game -- TODO: Sort all inv here?
+main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
 
 
 welcomeMsg :: IO ()
@@ -280,12 +280,19 @@ look _ = undefined
 
 
 dispRmInv :: Inv -> StateT WorldState IO ()
-dispRmInv is = do
-    ens <- getEntBothGramNosInInv is
-    mapM_ descEntInRm (nub . zip (makeCountList ens) $ ens)
+dispRmInv is = mkNameCountBothList is >>= mapM_ descEntInRm
   where
-    descEntInRm (x, (s, _)) | x == 1 = lift . T.putStrLn $ "There is " <> aOrAn s <> " here."
-    descEntInRm (x, both) = lift . T.putStrLn $ "There are " <> showText x <> " " <> makePlurFromBoth both <> " here."
+    descEntInRm (en, c, (s, _))
+      | c == 1 = lift . T.putStrLn $ "There is " <> aOrAn s <> " here. " <> bracketQuote en
+    descEntInRm (en, c, both) = lift . T.putStrLn $ "There are " <> showText c <> " " <> makePlurFromBoth both <> " here. " <> bracketQuote en
+
+
+mkNameCountBothList :: Inv -> StateT WorldState IO [(T.Text, Int, BothGramNos)]
+mkNameCountBothList is = do
+    ens <- getEntNamesInInv is
+    ebgns <- getEntBothGramNosInInv is
+    let cs = makeCountList ebgns
+    return (nub . zip3 ens cs $ ebgns)
 
 
 makeCountList :: (Eq a) => [a] -> [Int]
@@ -305,11 +312,7 @@ descEnt e = do
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
     is <- getInv i
-    if null is then none else do
-        ens <- getEntNamesInInv is
-        ebgns <- getEntBothGramNosInInv is
-        let cs = makeCountList ebgns
-        header >> mapM_ descEntInInv (nub . zip3 ens cs $ ebgns)
+    if null is then none else header >> mkNameCountBothList is >>= mapM_ descEntInInv
   where
     none
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
@@ -317,7 +320,8 @@ descEntsInInvForId i = do
     header
       | i == 0 = lift . T.putStrLn $ "You are carrying:"
       | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " contains:"
-    descEntInInv (en, c, (s, _)) | c == 1 = lift . T.putStrLn $ nameCol en <> "1 " <> s
+    descEntInInv (en, c, (s, _))
+      | c == 1 = lift . T.putStrLn $ nameCol en <> "1 " <> s
     descEntInInv (en, c, both) = lift . T.putStrLn $ nameCol en <> showText c <> " " <> makePlurFromBoth both
     nameCol n = bracketPad 10 n
 

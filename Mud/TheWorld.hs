@@ -12,6 +12,7 @@ import Control.Lens.Operators ((^.), (?=))
 import Control.Monad (liftM, unless, when)
 import Control.Monad.Trans.State
 import Data.List ((\\))
+import Data.Maybe (fromJust)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 
@@ -123,8 +124,8 @@ initPla = Pla { _rmId = iHill
               , _race = Human }
 
 
-createWorld :: StateT WorldState IO ()
-createWorld = do
+world :: StateT WorldState IO ()
+world = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 LHand)
 
     putRm  iHill [iGP1, iLongSword] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
@@ -154,6 +155,25 @@ createWorld = do
     putCloth iBracelet2 (Ent iBracelet2 "bracelet" "bronze bracelet" "" "It's a simple silver bracelet." 0) (Obj 1 1) (Cloth WristC)
     putCloth iBracelet3 (Ent iBracelet3 "bracelet" "gold bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
     putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
+
+
+createWorld :: StateT WorldState IO ()
+createWorld = world >> sortAllInvs
+
+
+sortAllInvs :: StateT WorldState IO () -- TODO: Refactor?
+sortAllInvs = do
+    ws <- get
+    let ks = ws^.invTbl.to IM.keys
+    sortEach ks
+  where
+    sortEach [] = return ()
+    sortEach (x:xs) = do
+        ws <- get
+        let is = ws^.invTbl.at x.to fromJust
+        is' <- sortInv is
+        invTbl.at x ?= is'
+        sortEach xs
 
 
 -----
