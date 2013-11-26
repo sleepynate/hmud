@@ -12,8 +12,9 @@ import Control.Monad (liftM)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (isDigit)
-import Data.List (delete, sort)
+import Data.List (delete, sort, sortBy)
 import Data.Maybe (fromJust)
+import Data.Monoid (mappend)
 import Data.Text.Strict.Lens (packed, unpacked)
 import Data.Text.Read (decimal)
 import qualified Data.Map.Strict as M
@@ -45,8 +46,23 @@ quote :: T.Text -> T.Text
 quote t = T.concat ["\"", t, "\""]
 
 
+bracketQuote :: T.Text -> T.Text
+bracketQuote t = T.concat ["[", t, "]"]
+
+
 unquote :: T.Text -> T.Text
 unquote = T.init . T.tail
+
+
+bracketPad :: Int -> T.Text -> T.Text
+bracketPad x t = bracketQuote t' <> T.replicate p " "
+  where
+    t' = T.take (x - 3) t
+    p  = x - (T.length t') - 2
+
+
+fstOf3 :: (a, b, c) -> a
+fstOf3 (a, _, _) = a
 
 
 findAbbrev :: T.Text -> [T.Text] -> Maybe T.Text
@@ -81,6 +97,12 @@ getEntNamesInInv :: Inv -> StateT WorldState IO [T.Text]
 getEntNamesInInv is = do
     es <- getEntsInInv is
     return [ e^.name | e <- es ]
+
+
+getEntSingsInInv :: Inv -> StateT WorldState IO [T.Text]
+getEntSingsInInv is = do
+    es <- getEntsInInv is
+    return [ e^.sing | e <- es ]
 
 
 type BothGramNos = (Sing, Plur)
@@ -240,9 +262,9 @@ slotL = (slotChar : "l")^.packed
 findEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent) -- TODO: Refactor?
 findEntToReady searchName = do
     mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
-    case mes of Nothing    -> return Nothing
-                Just [e]   -> return (Just e)
+    case mes of Just [e]   -> return (Just e)
                 Just (e:_) -> return (Just e)
+                Nothing    -> return Nothing
                 _ -> undefined
 
 
@@ -278,7 +300,18 @@ getPlaInv = getInv 0
 addToInv :: Inv -> Id -> StateT WorldState IO ()
 addToInv is ti = do
     tis <- getInv ti
-    invTbl.at ti ?= tis ++ is
+    is' <- sortInv $ tis ++ is
+    invTbl.at ti ?= is'
+
+
+sortInv :: Inv -> StateT WorldState IO Inv
+sortInv is = do
+    names <- getEntNamesInInv is
+    sings <- getEntSingsInInv is
+    let ins = zip3 is names sings
+    return (map fstOf3 $ sortBy nameThenSing ins)
+  where
+    nameThenSing (_, n, s) (_, n', s') = (n `compare` n') `mappend` (s `compare` s')
 
 
 remFromInv :: Inv -> Id -> StateT WorldState IO ()

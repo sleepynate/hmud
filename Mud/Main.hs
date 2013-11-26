@@ -29,10 +29,6 @@ import System.IO
 import System.Process (readProcess)
 
 
--- TODO: Refactor case expressions so that the shorter branch is on the top.
--- TODO: Inventory should be grouped in memory as the user sees it.
-
-
 -- ==================================================
 -- Top level definitions and convenience methods:
 
@@ -58,7 +54,7 @@ newLine :: IO ()
 newLine = putChar nl
 
 
-ok :: IO ()
+ok :: IO () -- TODO: Favor a more descriptive message.
 ok = T.putStrLn "Ok."
 
 
@@ -126,7 +122,7 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
+main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game -- TODO: Sort all inv here?
 
 
 welcomeMsg :: IO ()
@@ -308,8 +304,12 @@ descEnt e = do
 
 descEntsInInvForId :: Id -> StateT WorldState IO ()
 descEntsInInvForId i = do
-    ens <- getInv i >>= getEntBothGramNosInInv
-    if null ens then none else header >> mapM_ descEntInInv (nub . zip (makeCountList ens) $ ens)
+    is <- getInv i
+    if null is then none else do
+        ens <- getEntNamesInInv is
+        ebgns <- getEntBothGramNosInInv is
+        let cs = makeCountList ebgns
+        header >> mapM_ descEntInInv (nub . zip3 ens cs $ ebgns)
   where
     none
       | i == 0 = lift . T.putStrLn $ "You aren't carrying anything."
@@ -317,8 +317,9 @@ descEntsInInvForId i = do
     header
       | i == 0 = lift . T.putStrLn $ "You are carrying:"
       | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " contains:"
-    descEntInInv (x, (s, _)) | x == 1 = lift . T.putStrLn $ "1 " <> s
-    descEntInInv (x, both) = lift . T.putStrLn $ showText x <> " " <> makePlurFromBoth both
+    descEntInInv (en, c, (s, _)) | c == 1 = lift . T.putStrLn $ nameCol en <> "1 " <> s
+    descEntInInv (en, c, both) = lift . T.putStrLn $ nameCol en <> showText c <> " " <> makePlurFromBoth both
+    nameCol n = bracketPad 10 n
 
 
 inv :: Action
@@ -354,7 +355,7 @@ descEq i = do
 descEqHelper :: (SlotName, Id) -> StateT WorldState IO T.Text
 descEqHelper (sn, i) = do
     e <- getEnt i
-    return ("[" <> sn <> "] " <> [tab]^.packed <> e^.sing)
+    return (bracketPad 15 sn <> e^.sing)
 
 
 getAction :: Action
