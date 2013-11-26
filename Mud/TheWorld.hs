@@ -44,6 +44,15 @@ putObj i e o = do
     objTbl.at i  ?= o
 
 
+putCloth :: Id -> Ent -> Obj -> Cloth -> StateT WorldState IO ()
+putCloth i e o c = do
+    ensureSafeId i
+    typeTbl.at i  ?= ClothType
+    entTbl.at i   ?= e
+    objTbl.at i   ?= o
+    clothTbl.at i ?= c
+
+
 putCon :: Id -> Ent -> Obj -> Inv -> Con -> StateT WorldState IO ()
 putCon i e o is c = do
     ensureSafeId i
@@ -118,9 +127,9 @@ createWorld :: StateT WorldState IO ()
 createWorld = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 LHand)
 
-    putRm  iHill [iGP1, iBastard] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
+    putRm  iHill [iGP1, iLongSword] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
 
-    putRm  iCliff [iElephant, iBag2] (Rm "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
+    putRm  iCliff [iElephant, iBag2, iBracelet1, iBracelet2, iBracelet3, iBracelet4] (Rm "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
     
     putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1)
     putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1)
@@ -134,12 +143,17 @@ createWorld = do
     putCon iBag1 (Ent iBag1 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's red." 0) (Obj 1 1) [iGP2, iGP3] (Con 10)
     putCon iBag2 (Ent iBag2 "sack" "cloth sack" "" "It's a typical cloth sack, perfect for holding all your treasure. It's blue." 0) (Obj 1 1) [iKewpie2] (Con 10)
 
-    putWpn iSword1 (Ent iSword1 "short" "short sword" "" "It's a sword; short but still sharp! It's silver." 0) (Obj 1 1) (Wpn OneHanded 1 10)
-    putWpn iSword2 (Ent iSword2 "short" "short sword" "" "It's a sword; short but still sharp! It's gold." 0) (Obj 1 1) (Wpn OneHanded 1 10)
+    putWpn iSword1 (Ent iSword1 "sword" "short sword" "" "It's a sword; short but still sharp! It's silver." 0) (Obj 1 1) (Wpn OneHanded 1 10)
+    putWpn iSword2 (Ent iSword2 "sword" "short sword" "" "It's a sword; short but still sharp! It's gold." 0) (Obj 1 1) (Wpn OneHanded 1 10)
 
     putWpn iClub (Ent iClub "club" "wooden club" "" "It's a crude wooden club; the type a neanderthal might use to great effect." 0) (Obj 1 1) (Wpn OneHanded 1 5)
 
-    putWpn iBastard (Ent iBastard "bastard" "two-handed bastard sword" "" "What a big sword! With the right technique it could do a great deal of damage." 0) (Obj 1 1) (Wpn TwoHanded 5 20)
+    putWpn iLongSword (Ent iLongSword "sword" "two-handed long sword" "" "What a big sword! With the right technique it could do a great deal of damage." 0) (Obj 1 1) (Wpn TwoHanded 5 20)
+
+    putCloth iBracelet1 (Ent iBracelet1 "bracelet" "silver bracelet" "" "It's a simple bronze bracelet." 0) (Obj 1 1) (Cloth WristC)
+    putCloth iBracelet2 (Ent iBracelet2 "bracelet" "bronze bracelet" "" "It's a simple silver bracelet." 0) (Obj 1 1) (Cloth WristC)
+    putCloth iBracelet3 (Ent iBracelet3 "bracelet" "gold bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
+    putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
 
 
 -----

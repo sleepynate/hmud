@@ -35,4 +35,12 @@ iSword2 = 12 :: Int
 
 iClub = 13 :: Int
 
-iBastard = 14 :: Int
+iLongSword = 14 :: Int
+
+iBracelet1 = 15 :: Int
+
+iBracelet2 = 16 :: Int
+
+iBracelet3 = 17 :: Int
+
+iBracelet4 = 18 :: Int

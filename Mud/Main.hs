@@ -29,6 +29,10 @@ import System.IO
 import System.Process (readProcess)
 
 
+-- TODO: Refactor case expressions so that the shorter branch is on the top.
+-- TODO: Inventory should be grouped in memory as the user sees it.
+
+
 -- ==================================================
 -- Top level definitions and convenience methods:
 
@@ -198,7 +202,7 @@ dumpFile fn = T.putStr =<< T.readFile fn
 data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 
-what :: Action
+what :: Action -- TODO: Items should not be referred to by their sing names.
 what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
 what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
 what (r:rs) = what [r] >> lift newLine >> what rs
@@ -546,7 +550,18 @@ readyCloth i e em mrol = do
     ms <- case mrol of Just rol -> getDesigClothSlot i e em rol
                        Nothing  -> undefined --getAvailClothSlot em
     case ms of Nothing -> return ()
-               Just _  -> undefined
+               Just s  -> do
+                   let em' = em & at s ?~ i
+                   eqTbl.at 0 ?= em'
+                   remFromInv [i] 0
+                   readiedMsg s
+  where
+    readiedMsg s = do
+        c <- getCloth i
+        let Cloth ct = c
+        case ct of FingerC -> lift . T.putStrLn $ "You wear the " <> e^.sing <> " on your " <> slotNamesMap^.at s.to fromJust <> "."
+                   WristC  -> lift . T.putStrLn $ "You wear the " <> e^.sing <> " on your " <> slotNamesMap^.at s.to fromJust <> "."
+                   _ -> undefined
 
 
 getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> StateT WorldState IO (Maybe Slot) -- TODO: Refactor?
@@ -577,7 +592,7 @@ getDesigClothSlot i e em rol = do
     sorry s e'   = lift $ T.putStrLn ("You're already wearing a " <> e'^.sing <> " on your " <> slotNamesMap^.at s.to fromJust <> ".") >> return Nothing
     sorryIsRing  = lift $ T.putStrLn ringHelp >> return Nothing
     sorryNotRing = lift $ T.putStrLn ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
-    sorryWrist   = lift $ T.putStrLn "You're already wearing three accessories on your wrist. Any more would just be uncomfortable!" >> return Nothing
+    sorryWrist   = lift $ T.putStrLn "You can't wear any more accessories on your wrist." >> return Nothing
 
 
 unready :: Action
