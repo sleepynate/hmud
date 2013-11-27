@@ -158,7 +158,7 @@ world = do
 
 
 createWorld :: MudStack ()
-createWorld = output "Creating the world..." >> world >> output "Sorting all inventories..." >> sortAllInvs
+createWorld = output "Creating the world..." >> world >> output "Sorting all inventories...\n" >> sortAllInvs
 
 
 sortAllInvs :: MudStack ()

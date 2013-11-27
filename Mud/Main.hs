@@ -136,7 +136,7 @@ welcomeMsg :: IO ()
 welcomeMsg = do
     un <- getEnv "USER"
     mn <- whatsMyName
-    T.putStrLn $ "Hello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
+    T.putStrLn $ "\nHello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
   where
     whatsMyName = getProgName >>= \mn -> return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
 
