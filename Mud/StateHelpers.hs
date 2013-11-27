@@ -42,27 +42,40 @@ aOrAn t
   | otherwise = "a " <> t
 
 
-quote :: T.Text -> T.Text
-quote t = T.concat ["\"", t, "\""]
+quoteWith :: (T.Text, T.Text) -> T.Text -> T.Text
+quoteWith (a, b) t = T.concat [ a, t, b ]
+
+
+dblQuote :: T.Text -> T.Text
+dblQuote = quoteWith ("\"", "\"")
 
 
 bracketQuote :: T.Text -> T.Text
-bracketQuote t = T.concat ["[", t, "]"]
+bracketQuote = quoteWith ("[", "]")
 
 
 parensQuote :: T.Text -> T.Text
-parensQuote t = T.concat ["(", t, ")"]
+parensQuote = quoteWith ("(", ")")
 
 
 unquote :: T.Text -> T.Text
 unquote = T.init . T.tail
 
 
-bracketPad :: Int -> T.Text -> T.Text
-bracketPad x t = bracketQuote t' <> T.replicate p " "
+quoteWithAndPad :: (T.Text, T.Text) -> Int -> T.Text -> T.Text
+quoteWithAndPad q x t = quoteWith q t' <> T.replicate p " "
   where
-    t' = T.take (x - 3) t
+    t' = T.take (x - ql - 1) t
+    ql = sum . map T.length $ [fst q, snd q]
     p  = x - (T.length t') - 2
+
+
+bracketPad :: Int -> T.Text -> T.Text
+bracketPad = quoteWithAndPad ("[", "]")
+
+
+parensPad :: Int -> T.Text -> T.Text
+parensPad = quoteWithAndPad ("(", ")")
 
 
 fstOf3 :: (a, b, c) -> a
@@ -247,15 +260,15 @@ getEntToReadyByName searchName
       return (me, Nothing)
   where
     sorry = lift $ T.putStrLn sorryMsg >> return (Nothing, Nothing)
-    sorryMsg = T.concat [ "Please specify ", quote slotR, " or ", quote slotL, ".\n", ringHelp ]
+    sorryMsg = T.concat [ "Please specify ", dblQuote slotR, " or ", dblQuote slotL, ".\n", ringHelp ]
 
 
 ringHelp :: T.Text
-ringHelp = T.concat [ "For rings, specify ", quote slotR, " or ", quote slotL, " immediately followed by:\n"
-                    , quote "if", " for index finger,\n"
-                    , quote "mf", " for middle finter,\n"
-                    , quote "rf", " for ring finger,\n"
-                    , quote "pf", " for pinky finger." ]
+ringHelp = T.concat [ "For rings, specify ", dblQuote slotR, " or ", dblQuote slotL, " immediately followed by:\n"
+                    , dblQuote "if", " for index finger,\n"
+                    , dblQuote "mf", " for middle finter,\n"
+                    , dblQuote "rf", " for ring finger,\n"
+                    , dblQuote "pf", " for pinky finger." ]
 
 
 slotR, slotL :: T.Text
@@ -267,7 +280,7 @@ findEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent) -- TODO: Refactor?
 findEntToReady searchName = do
     mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
     case mes of Just [e]   -> return (Just e)
-                Just (e:_) -> return (Just e)
+                Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
                 Nothing    -> return Nothing
                 _ -> undefined
 

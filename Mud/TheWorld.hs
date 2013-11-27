@@ -161,19 +161,17 @@ createWorld :: StateT WorldState IO ()
 createWorld = world >> sortAllInvs
 
 
-sortAllInvs :: StateT WorldState IO () -- TODO: Refactor?
+sortAllInvs :: StateT WorldState IO ()
 sortAllInvs = do
     ws <- get
     let ks = ws^.invTbl.to IM.keys
-    sortEach ks
+    mapM_ sortEach ks
   where
-    sortEach [] = return ()
-    sortEach (x:xs) = do
+    sortEach k = do
         ws <- get
-        let is = ws^.invTbl.at x.to fromJust
+        let is = ws^.invTbl.at k.to fromJust
         is' <- sortInv is
-        invTbl.at x ?= is'
-        sortEach xs
+        invTbl.at k ?= is'
 
 
 -----
@@ -198,5 +196,5 @@ mkOkapi = do
                 , _xp = 50
                 , _hand = NoHand }
     putMob i e [] (M.fromList []) m
-    addToInv [i] iHill
+    addToInv [i] iHill -- Will sort the inv.
     return i

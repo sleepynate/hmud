@@ -54,10 +54,6 @@ newLine :: IO ()
 newLine = putChar nl
 
 
-ok :: IO () -- TODO: Favor a more descriptive message.
-ok = T.putStrLn "Ok."
-
-
 dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
 dumpAssocList = mapM_ dump
   where
@@ -129,7 +125,7 @@ welcomeMsg :: IO ()
 welcomeMsg = do
     un <- getEnv "USER"
     mn <- whatsMyName
-    T.putStrLn $ "Hello, " <> un^.packed <> ". Welcome to " <> quote mn <> " ver " <> ver <> ".\n"
+    T.putStrLn $ "Hello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
   where
     whatsMyName = getProgName >>= \mn -> return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
 
@@ -171,7 +167,7 @@ findAction cn = fmap (action . findCmdForFullName) $ findAbbrev cn' cns
 dispCmdList :: IO ()
 dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
   where
-    makeTxtForCmd txt c = T.concat [cmdName c, [tab]^.packed, cmdDesc c, [nl]^.packed, txt]
+    makeTxtForCmd txt c = T.concat [ cmdName c, [tab]^.packed, cmdDesc c, [nl]^.packed, txt ]
 
 
 help :: Action
@@ -200,16 +196,14 @@ data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 what :: Action
 what [""]   = lift . T.putStrLn $ "What abbreviation do you want to look up?"
-what [r]    = (lift . whatCmd $ r) >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
+what [r]    = lift whatCmd >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
+  where
+    whatCmd = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
+      where
+        notFound = T.putStrLn $ dblQuote r <> " doesn't refer to any commands."
+        found cn = T.putStrLn $ dblQuote r <> " may refer to the " <> dblQuote cn <> " command."
 what (r:rs) = what [r] >> lift newLine >> what rs
 what _ = undefined
-
-
-whatCmd :: T.Text -> IO ()
-whatCmd r = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
-  where
-    notFound = T.putStrLn $ quote r <> " doesn't refer to any commands."
-    found cn = T.putStrLn $ quote r <> " may refer to the " <> quote cn <> " command."
 
 
 whatInv :: InvType -> T.Text -> StateT WorldState IO ()
@@ -219,7 +213,7 @@ whatInv it r = do
                      RmInv  -> getPlaRmInv
     ger <- getEntsInInvByName r is
     case ger of
-      (Mult n (Just es)) | n == acp  -> lift . T.putStrLn $ quote acp <> " may refer to everything " <> loc
+      (Mult n (Just es)) | n == acp  -> lift . T.putStrLn $ dblQuote acp <> " may refer to everything" <> loc
                          | otherwise ->
                            let e = head es
                                len = length es
@@ -227,17 +221,17 @@ whatInv it r = do
                              then let ebgns = take len [ getEntBothGramNos e' | e' <- es ]
                                       h = head ebgns
                                       target = if all (== h) ebgns then makePlurFromBoth h else bracketQuote $ e^.name
-                                  in lift . T.putStrLn $ quote r <> " may refer to the " <> showText len <> " " <> target <> " " <> loc
+                                  in lift . T.putStrLn $ dblQuote r <> " may refer to the " <> showText len <> " " <> target <> loc
                              else do
                                  ens <- getEntNamesInInv is
-                                 lift . T.putStrLn $ quote r <> " may refer to the " <> checkFirst e ens <> e^.sing <> " " <> loc
-      (Indexed x _ (Right e)) -> lift . T.putStrLn $ quote r <> " may refer to the " <> mkOrdinal x <> " " <> bracketQuote (e^.name) <> " " <> parensQuote (e^.sing) <> " " <> loc
-      _                       -> lift . T.putStrLn $ quote r <> " doesn't refer to anything " <> loc
+                                 lift . T.putStrLn . T.concat $ [ dblQuote r, " may refer to the ", checkFirst e ens, e^.sing, loc ]
+      (Indexed x _ (Right e)) -> lift . T.putStrLn . T.concat $ [ dblQuote r, " may refer to the ", mkOrdinal x, " ", bracketQuote (e^.name), " ", parensQuote (e^.sing), loc ]
+      _                       -> lift . T.putStrLn . T.concat $ [ dblQuote r, " doesn't refer to anything", loc ]
   where
     acp = [allChar]^.packed
-    loc = case it of PlaInv -> "in your inventory."
-                     PlaEq  -> "in your readied equipment."
-                     RmInv  -> "in this room."
+    loc = case it of PlaInv -> " in your inventory."
+                     PlaEq  -> " in your readied equipment."
+                     RmInv  -> " in this room."
 
 
 checkFirst :: Ent -> [T.Text] -> T.Text
@@ -261,7 +255,7 @@ tryMove :: T.Text -> StateT WorldState IO ()
 tryMove dir = let dir' = T.toLower dir
               in maybe sorry movePla $ M.lookup dir' dirMap
   where
-    sorry     = lift . T.putStrLn . quote $ dir <> " is not a valid direction."
+    sorry     = lift . T.putStrLn . dblQuote $ dir <> " is not a valid direction."
     movePla f = getPlaRmNextRmId f >>= maybe heDont moveHelper
       where
         heDont       = lift . T.putStrLn $ "You can't go that way."
@@ -275,7 +269,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 look :: Action
 look [""] = do
     r <- getPlaRm
-    lift . T.putStrLn . T.concat $ [r^.name, [nl]^.packed, r^.desc]
+    lift . T.putStrLn . T.concat $ [ r^.name, [nl]^.packed, r^.desc ]
     getPlaRmInv >>= dispRmInv
 look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
@@ -306,10 +300,10 @@ descEnt :: Ent -> StateT WorldState IO ()
 descEnt e = do
     lift . T.putStrLn $ e^.desc
     t <- getEntType e
-    when (t == ConType) $ descEntsInInvForId ei
-    when (t == MobType) $ descEq ei
+    when (t == ConType) $ descEntsInInvForId i
+    when (t == MobType) $ descEq i
   where
-    ei = e^.entId
+    i = e^.entId
 
 
 descEntsInInvForId :: Id -> StateT WorldState IO ()
@@ -326,7 +320,7 @@ descEntsInInvForId i = do
     descEntInInv (en, c, (s, _))
       | c == 1 = lift . T.putStrLn $ nameCol en <> "1 " <> s
     descEntInInv (en, c, both) = lift . T.putStrLn $ nameCol en <> showText c <> " " <> makePlurFromBoth both
-    nameCol n = bracketPad 10 n
+    nameCol = bracketPad 11
 
 
 inv :: Action
@@ -351,6 +345,9 @@ descEq i = do
     mkSlotNameToIdList = map (first getSlotName)
     getSlotName s = fromJust . M.lookup s $ slotNamesMap
     mkEqDescList = mapM descEqHelper
+    descEqHelper (sn, i') = do
+        e <- getEnt i'
+        return (T.concat [ parensPad 15 sn, e^.sing, " ", bracketQuote $ e^.name ])
     none
       | i == 0    = lift . T.putStrLn $ "You don't have anything readied. You're naked!"
       | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " doesn't have anything readied."
@@ -359,19 +356,14 @@ descEq i = do
       | otherwise = getEnt i >>= \e -> lift . T.putStrLn $ "The " <> e^.sing <> " has readied the following equipment:"
 
 
-descEqHelper :: (SlotName, Id) -> StateT WorldState IO T.Text
-descEqHelper (sn, i) = do
-    e <- getEnt i
-    return (bracketPad 15 sn <> e^.sing)
-
-
 getAction :: Action
 getAction [""] = lift . T.putStrLn $ "What do you want to get?"
 getAction [r]  = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ shuffleInv
   where
     shuffleInv es = do
         i <- getPlaRmId
-        moveInv (getEntIds es) i 0 >> lift ok
+        let is = getEntIds es
+        moveInv is i 0 >> descGetDrop Get is
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _ = undefined
 
@@ -382,9 +374,23 @@ dropAction [r]  = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >
   where
     shuffleInv es = do
         i <- getPlaRmId
-        moveInv (getEntIds es) 0 i >> lift ok
+        let is = getEntIds es
+        moveInv is 0 i >> descGetDrop Drop is
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _ = undefined
+
+
+data GetOrDrop = Get | Drop
+
+
+descGetDrop :: GetOrDrop -> Inv -> StateT WorldState IO ()
+descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
+  where
+    descGetDropHelper (_, c, (s, _))
+      | c == 1 = lift . T.putStrLn . T.concat $ [ "You", verb, aOrAn s, "." ]
+    descGetDropHelper (_, c, both) = lift . T.putStrLn . T.concat $ [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
+    verb = case god of Get  -> " pick up "
+                       Drop -> " drop "
 
 
 data PutOrRem = Put | Rem
@@ -438,15 +444,15 @@ putHelper ci (r:rs) = do
     case mes of Nothing -> next
                 Just es -> do
                     let is = getEntIds es
+                    ce <- getEnt ci
                     if ci `elem` is
                       then do
-                          e <- getEnt ci
-                          lift . T.putStrLn $ "You can't put the " <> e^.sing <> " inside itself."
+                          lift . T.putStrLn $ "You can't put the " <> ce^.sing <> " inside itself."
                           let is' = filter (/= ci) is
                           if null is'
                             then next
-                            else moveInv is' 0 ci >> lift ok >> next
-                      else moveInv is 0 ci >> lift ok >> next
+                            else moveInv is' 0 ci >> descPutRem Put is' ce >> next
+                      else moveInv is 0 ci >> descPutRem Put is ce >> next
   where
     next = putHelper ci rs
 
@@ -454,14 +460,27 @@ putHelper ci (r:rs) = do
 remHelper :: Id -> Rest -> StateT WorldState IO ()
 remHelper _ []      = return ()
 remHelper ci (r:rs) = do
-    e <- getEnt ci
+    ce <- getEnt ci
     fis <- getInv ci
     if null fis
-      then lift . T.putStrLn $ "The " <> e^.sing <> " appears to be empty."
-      else getEntsInInvByName r fis >>= procGetEntResCon (e^.sing) r >>= maybe next shuffleInv
+      then lift . T.putStrLn $ "The " <> ce^.sing <> " appears to be empty."
+      else getEntsInInvByName r fis >>= procGetEntResCon (ce^.sing) r >>= maybe next (shuffleInv ce)
   where
     next = remHelper ci rs
-    shuffleInv es = moveInv (getEntIds es) ci 0 >> lift ok >> next
+    shuffleInv ce es = let is = getEntIds es
+                       in moveInv is ci 0 >> descPutRem Rem is ce >> next
+
+
+descPutRem :: PutOrRem -> Inv -> Ent -> StateT WorldState IO ()
+descPutRem por is ce = mkNameCountBothList is >>= mapM_ descPutRemHelper
+  where
+    descPutRemHelper (_, c, (s, _))
+      | c == 1 = lift . T.putStrLn . T.concat $ [ "You", verb, aOrAn s, prep, ce^.sing, "." ]
+    descPutRemHelper (_, c, both) = lift . T.putStrLn . T.concat $ [ "You", verb, showText c, " ", makePlurFromBoth both, prep, ce^.sing, "." ]
+    verb = case por of Put -> " put "
+                       Rem -> " remove "
+    prep = case por of Put -> " in the "
+                       Rem -> " from the "
 
 
 ready :: Action
@@ -611,9 +630,17 @@ unready [r]  = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= t
         let is = getEntIds es
         em <- getPlaEqMap
         eqTbl.at 0 ?= M.filter (`notElem` is) em
-        addToInv is 0 >> lift ok
+        addToInv is 0 >> descUnready is
 unready (r:rs) = unready [r] >> unready rs
 unready _ = undefined
+
+
+descUnready :: Inv -> StateT WorldState IO ()
+descUnready is = mkNameCountBothList is >>= mapM_ descUnreadyHelper
+  where
+    descUnreadyHelper (_, c, (s, _))
+      | c == 1 = lift . T.putStrLn . T.concat $ [ "You unready the ", s, "." ] -- TODO: Use a word that's better than "unready" (case-by-case)?
+    descUnreadyHelper (_, c, both) = lift . T.putStrLn . T.concat $ [ "You unready ", showText c, " ", makePlurFromBoth both, "." ]
 
 
 okapi :: Action
@@ -629,7 +656,7 @@ buffCheck _ = lift buffCheckHelper
         td <- getTemporaryDirectory
         (fn, h) <- openTempFile td "temp"
         bm <- hGetBuffering h
-        T.putStrLn $ "(Default) buffering mode for temp file " <> fn^.packed.to quote <> " is " <> (quote . showText $ bm) <> "."
+        T.putStrLn $ "(Default) buffering mode for temp file " <> fn^.packed.to dblQuote <> " is " <> (dblQuote . showText $ bm) <> "."
         hClose h
         removeFile fn
 
