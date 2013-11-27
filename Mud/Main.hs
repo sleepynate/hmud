@@ -26,11 +26,15 @@ import System.Directory (getDirectoryContents, getTemporaryDirectory, removeFile
 import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
+import System.IO.Unsafe (unsafePerformIO)
 import System.Process (readProcess)
 
 
+-- TODO: Split into more modules. Trim down Main until it contains just the "main" function and the bare minimum.
+
+
 -- TODO: Consider what, if anything, should be done about indexing in commands like this:
--- re 1.sw 3.sw
+-- r 1.sw 3.sw
 -- ...when you have 3 swords.
 
 
@@ -43,7 +47,9 @@ ver = "0.0 2013-10"
 
 
 mudDir :: FilePath
-mudDir = "/Users/stolaruk/Haskell/hmud/Mud/"^.unpacked
+mudDir = home ++ "/hmud/Mud/"^.unpacked
+  where
+    home = unsafePerformIO . getEnv $ "HOME"
 
 
 helpDir :: FilePath
