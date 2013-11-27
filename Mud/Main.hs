@@ -13,7 +13,7 @@ import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
 import Control.Monad (forM_, when, void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
-import Data.Char (toUpper)
+import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.List (delete, find, nub, sort)
 import Data.Maybe (fromJust, isJust, isNothing)
@@ -27,6 +27,11 @@ import System.Environment (getEnv, getEnvironment, getProgName)
 import System.Exit (exitSuccess)
 import System.IO
 import System.Process (readProcess)
+
+
+-- TODO: Consider what, if anything, should be done about indexing in commands like this:
+-- re 1.sw 3.sw
+-- ...when you have 3 swords.
 
 
 -- ==================================================
@@ -676,6 +681,6 @@ uptime _ = do
   where
     parse ut = let (a, b) = span (/= ',') ut
                    a' = unwords . tail . words $ a
-                   b' = takeWhile (/= ',') . tail $ b
+                   b' = dropWhile isSpace . takeWhile (/= ',') . tail $ b
                    c  = (toUpper . head $ a') : (tail a')
-               in c^.packed <> b'^.packed <> "."
+               in T.concat [ c^.packed, " ", b'^.packed, "." ]
