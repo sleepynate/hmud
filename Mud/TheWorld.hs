@@ -17,7 +17,7 @@ import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 
 
-getUnusedId :: StateT WorldState IO Id
+getUnusedId :: MudStack Id
 getUnusedId = liftM findAvailKey allKeys
 
 
@@ -25,19 +25,19 @@ findAvailKey :: [Int] -> Int
 findAvailKey xs = head $ [0..] \\ xs
 
 
-allKeys :: StateT WorldState IO Inv
+allKeys :: MudStack Inv
 allKeys = do
     ws <- get
     return (ws^.typeTbl.to IM.keys)
 
 
-ensureSafeId :: Id -> StateT WorldState IO ()
+ensureSafeId :: Id -> MudStack ()
 ensureSafeId i = do
     ks <- allKeys
     unless (null ks) $ when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
 
 
-putObj :: Id -> Ent -> Obj -> StateT WorldState IO ()
+putObj :: Id -> Ent -> Obj -> MudStack ()
 putObj i e o = do
     ensureSafeId i
     typeTbl.at i ?= ObjType
@@ -45,7 +45,7 @@ putObj i e o = do
     objTbl.at i  ?= o
 
 
-putCloth :: Id -> Ent -> Obj -> Cloth -> StateT WorldState IO ()
+putCloth :: Id -> Ent -> Obj -> Cloth -> MudStack ()
 putCloth i e o c = do
     ensureSafeId i
     typeTbl.at i  ?= ClothType
@@ -54,7 +54,7 @@ putCloth i e o c = do
     clothTbl.at i ?= c
 
 
-putCon :: Id -> Ent -> Obj -> Inv -> Con -> StateT WorldState IO ()
+putCon :: Id -> Ent -> Obj -> Inv -> Con -> MudStack ()
 putCon i e o is c = do
     ensureSafeId i
     typeTbl.at i ?= ConType
@@ -64,7 +64,7 @@ putCon i e o is c = do
     conTbl.at i  ?= c
 
 
-putWpn :: Id -> Ent -> Obj -> Wpn -> StateT WorldState IO ()
+putWpn :: Id -> Ent -> Obj -> Wpn -> MudStack ()
 putWpn i e o w = do
     ensureSafeId i
     typeTbl.at i ?= WpnType
@@ -73,7 +73,7 @@ putWpn i e o w = do
     wpnTbl.at i  ?= w
 
 
-putArm :: Id -> Ent -> Obj -> Arm -> StateT WorldState IO ()
+putArm :: Id -> Ent -> Obj -> Arm -> MudStack ()
 putArm i e o a = do
     ensureSafeId i
     typeTbl.at i ?= ArmType
@@ -82,7 +82,7 @@ putArm i e o a = do
     armTbl.at i  ?= a
 
 
-putMob :: Id -> Ent -> Inv -> EqMap -> Mob -> StateT WorldState IO ()
+putMob :: Id -> Ent -> Inv -> EqMap -> Mob -> MudStack ()
 putMob i e is em m = do
     ensureSafeId i
     typeTbl.at i ?= MobType
@@ -92,7 +92,7 @@ putMob i e is em m = do
     mobTbl.at i  ?= m
 
 
-putRm :: Id -> Inv -> Rm -> StateT WorldState IO ()
+putRm :: Id -> Inv -> Rm -> MudStack ()
 putRm i is r = do
     ensureSafeId i
     typeTbl.at i ?= RmType
@@ -124,7 +124,7 @@ initPla = Pla { _rmId = iHill
               , _race = Human }
 
 
-world :: StateT WorldState IO ()
+world :: MudStack ()
 world = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 LHand)
 
@@ -157,11 +157,11 @@ world = do
     putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
 
 
-createWorld :: StateT WorldState IO ()
-createWorld = world >> sortAllInvs
+createWorld :: MudStack ()
+createWorld = output "Creating the world..." >> world >> output "Sorting all inventories..." >> sortAllInvs
 
 
-sortAllInvs :: StateT WorldState IO ()
+sortAllInvs :: MudStack ()
 sortAllInvs = do
     ws <- get
     let ks = ws^.invTbl.to IM.keys
@@ -177,7 +177,7 @@ sortAllInvs = do
 -----
 
 
-mkOkapi :: StateT WorldState IO Id
+mkOkapi :: MudStack Id
 mkOkapi = do
     i <- getUnusedId
     let e = Ent { _entId = i

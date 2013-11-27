@@ -22,6 +22,9 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 
 
+type MudStack = StateT WorldState IO
+
+
 -- ==================================================
 -- General purpose convenience methods:
 
@@ -29,6 +32,14 @@ import qualified Data.Text.IO as T
 infixr 7 <>
 (<>) :: T.Text -> T.Text -> T.Text
 (<>) = T.append
+
+
+output :: T.Text -> MudStack ()
+output = lift . T.putStrLn
+
+
+outputCon :: [T.Text] -> MudStack () -- Prefer over "output" when there would be more than two "(<>)"s.
+outputCon = lift . T.putStrLn . T.concat
 
 
 showText :: (Show a) => a -> T.Text
@@ -96,7 +107,7 @@ deleteAllInList xs ys = foldr (\x ys' -> delete x ys') ys xs
 -- Convenience methods for dealing with state:
 
 
-getEnt :: Id -> StateT WorldState IO Ent
+getEnt :: Id -> MudStack Ent
 getEnt i = do
     ws <- get
     return (ws^.entTbl.at i.to fromJust)
@@ -106,17 +117,17 @@ getEntIds :: [Ent] -> Inv
 getEntIds es = [ e^.entId | e <- es ]
 
 
-getEntsInInv :: Inv -> StateT WorldState IO [Ent]
+getEntsInInv :: Inv -> MudStack [Ent]
 getEntsInInv = mapM getEnt
 
 
-getEntNamesInInv :: Inv -> StateT WorldState IO [T.Text]
+getEntNamesInInv :: Inv -> MudStack [T.Text]
 getEntNamesInInv is = do
     es <- getEntsInInv is
     return [ e^.name | e <- es ]
 
 
-getEntSingsInInv :: Inv -> StateT WorldState IO [T.Text]
+getEntSingsInInv :: Inv -> MudStack [T.Text]
 getEntSingsInInv is = do
     es <- getEntsInInv is
     return [ e^.sing | e <- es ]
@@ -129,7 +140,7 @@ getEntBothGramNos :: Ent -> BothGramNos
 getEntBothGramNos e = (e^.sing, e^.plur)
 
 
-getEntBothGramNosInInv :: Inv -> StateT WorldState IO [BothGramNos]
+getEntBothGramNosInInv :: Inv -> MudStack [BothGramNos]
 getEntBothGramNosInInv is = do
     es <- getEntsInInv is
     return (map getEntBothGramNos es)
@@ -155,13 +166,13 @@ indexChar  = '.'
 slotChar   = ':'
 
 
-getEntsInInvByName :: T.Text -> Inv -> StateT WorldState IO GetEntResult
+getEntsInInvByName :: T.Text -> Inv -> MudStack GetEntResult
 getEntsInInvByName searchName is
   | searchName == [allChar]^.packed = liftM (Mult searchName . Just) $ getEntsInInv is
   | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
   | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
-                                      noInt = either undefined fst $ decimal noText
-                                      rest = T.drop (T.length noText) searchName
+                                      noInt  = either undefined fst $ decimal noText
+                                      rest   = T.drop (T.length noText) searchName
                                   in parse rest noInt
   | otherwise = getMultEnts 1 searchName is
   where
@@ -174,7 +185,7 @@ getEntsInInvByName searchName is
                                     | otherwise -> return Sorry
 
 
-getMultEnts :: Amount -> T.Text -> Inv -> StateT WorldState IO GetEntResult
+getMultEnts :: Amount -> T.Text -> Inv -> MudStack GetEntResult
 getMultEnts a n is
   | a < 1     = return Sorry
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
@@ -184,7 +195,7 @@ getMultEnts a n is
     takeMatchingEnts fn = take a . filter (\e -> e^.name == fn)
 
 
-getIndexedEnt :: Index -> T.Text -> Inv -> StateT WorldState IO GetEntResult
+getIndexedEnt :: Index -> T.Text -> Inv -> MudStack GetEntResult
 getIndexedEnt x n is
   | x < 1     = return Sorry
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
@@ -199,36 +210,36 @@ getIndexedEnt x n is
           else return (Indexed x n . Right $ matches !! (x - 1))
 
 
-procGetEntResRm :: T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
+procGetEntResRm :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResRm r res = case res of
-  Sorry                   -> lift $ T.putStrLn ("You don't see " <> aOrAn r <> " here.") >> return Nothing
-  (Mult n Nothing)        -> lift $ T.putStrLn ("You don't see any " <> n <> "s here.") >> return Nothing
+  Sorry                   -> output ("You don't see " <> aOrAn r <> " here.")             >> return Nothing
+  (Mult n Nothing)        -> output ("You don't see any " <> n <> "s here.")              >> return Nothing
   (Mult _ (Just es))      -> return (Just es)
-  (Indexed _ n (Left "")) -> lift $ T.putStrLn ("You don't see any " <> n <> "s here.") >> return Nothing
-  (Indexed x _ (Left p))  -> lift $ T.putStrLn ("You don't see " <> showText x <> " " <> p <> " here.") >> return Nothing
+  (Indexed _ n (Left "")) -> output ("You don't see any " <> n <> "s here.")              >> return Nothing
+  (Indexed x _ (Left p))  -> outputCon [ "You don't see ", showText x, " ", p, " here." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-procGetEntResPlaInv :: T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
+procGetEntResPlaInv :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResPlaInv r res = case res of
-  Sorry                   -> lift $ T.putStrLn ("You don't have " <> aOrAn r <> ".") >> return Nothing
-  (Mult n Nothing)        -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
+  Sorry                   -> output ("You don't have " <> aOrAn r <> ".")             >> return Nothing
+  (Mult n Nothing)        -> output ("You don't have any " <> n <> "s.")              >> return Nothing
   (Mult _ (Just es))      -> return (Just es)
-  (Indexed _ n (Left "")) -> lift $ T.putStrLn ("You don't have any " <> n <> "s.") >> return Nothing
-  (Indexed x _ (Left p))  -> lift $ T.putStrLn ("You don't have " <> showText x <> " " <> p <> ".") >> return Nothing
+  (Indexed _ n (Left "")) -> output ("You don't have any " <> n <> "s.")              >> return Nothing
+  (Indexed x _ (Left p))  -> outputCon [ "You don't have ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
 type ConName = T.Text
 
 
-procGetEntResCon :: ConName -> T.Text -> GetEntResult -> StateT WorldState IO (Maybe [Ent])
+procGetEntResCon :: ConName -> T.Text -> GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResCon cn r res = case res of
-  Sorry                   -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> aOrAn r <> ".") >> return Nothing
-  (Mult n Nothing)        -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
+  Sorry                   -> outputCon [ "The ", cn, " doesn't contain ", aOrAn r, "." ]            >> return Nothing
+  (Mult n Nothing)        -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
   (Mult _ (Just es))      -> return (Just es)
-  (Indexed _ n (Left "")) -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain any " <> n <> "s.") >> return Nothing
-  (Indexed x _ (Left p))  -> lift $ T.putStrLn ("The " <> cn <> " doesn't contain " <> showText x <> " " <> p <> ".") >> return Nothing
+  (Indexed _ n (Left "")) -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
+  (Indexed x _ (Left p))  -> outputCon [ "The ", cn, " doesn't contain ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
@@ -238,7 +249,7 @@ data RightOrLeft = R
                  | LIF | LMF | LRF | LPF
 
 
-getEntToReadyByName :: T.Text -> StateT WorldState IO (Maybe Ent, Maybe RightOrLeft) -- TODO: Refactor?
+getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft) -- TODO: Refactor?
 getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = do
       let (xs, ys) = T.break (== slotChar) searchName
@@ -259,8 +270,7 @@ getEntToReadyByName searchName
       me <- findEntToReady searchName
       return (me, Nothing)
   where
-    sorry = lift $ T.putStrLn sorryMsg >> return (Nothing, Nothing)
-    sorryMsg = T.concat [ "Please specify ", dblQuote slotR, " or ", dblQuote slotL, ".\n", ringHelp ]
+    sorry = outputCon [ "Please specify ", dblQuote slotR, " or ", dblQuote slotL, ".\n", ringHelp ] >> return (Nothing, Nothing)
 
 
 ringHelp :: T.Text
@@ -276,52 +286,52 @@ slotR = (slotChar : "r")^.packed
 slotL = (slotChar : "l")^.packed
 
 
-findEntToReady :: T.Text -> StateT WorldState IO (Maybe Ent) -- TODO: Refactor?
+findEntToReady :: T.Text -> MudStack (Maybe Ent) -- TODO: Refactor?
 findEntToReady searchName = do
     mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
     case mes of Just [e]   -> return (Just e)
                 Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
                 Nothing    -> return Nothing
-                _ -> undefined
+                _          -> undefined
 
 
-getEntType :: Ent -> StateT WorldState IO Type
+getEntType :: Ent -> MudStack Type
 getEntType e = do
     ws <- get
     let i = e^.entId
     return (ws^.typeTbl.at i.to fromJust)
 
 
-getCloth :: Id -> StateT WorldState IO Cloth
+getCloth :: Id -> MudStack Cloth
 getCloth i = do
     ws <- get
     return (ws^.clothTbl.at i.to fromJust)
 
 
-getWpn :: Id -> StateT WorldState IO Wpn
+getWpn :: Id -> MudStack Wpn
 getWpn i = do
     ws <- get
     return (ws^.wpnTbl.at i.to fromJust)
 
 
-getInv :: Id -> StateT WorldState IO Inv
+getInv :: Id -> MudStack Inv
 getInv i = do
     ws <- get
     return (ws^.invTbl.at i.to fromJust)
 
 
-getPlaInv :: StateT WorldState IO Inv
+getPlaInv :: MudStack Inv
 getPlaInv = getInv 0
 
 
-addToInv :: Inv -> Id -> StateT WorldState IO ()
+addToInv :: Inv -> Id -> MudStack ()
 addToInv is ti = do
     tis <- getInv ti
     is' <- sortInv $ tis ++ is
     invTbl.at ti ?= is'
 
 
-sortInv :: Inv -> StateT WorldState IO Inv
+sortInv :: Inv -> MudStack Inv
 sortInv is = do
     names <- getEntNamesInInv is
     sings <- getEntSingsInInv is
@@ -331,74 +341,74 @@ sortInv is = do
     nameThenSing (_, n, s) (_, n', s') = (n `compare` n') `mappend` (s `compare` s')
 
 
-remFromInv :: Inv -> Id -> StateT WorldState IO ()
+remFromInv :: Inv -> Id -> MudStack ()
 remFromInv is fi = do
     fis <- getInv fi
     invTbl.at fi ?= (deleteAllInList is fis)
 
 
-moveInv :: Inv -> Id -> Id -> StateT WorldState IO ()
+moveInv :: Inv -> Id -> Id -> MudStack ()
 moveInv [] _ _   = return ()
 moveInv is fi ti = remFromInv is fi >> addToInv is ti
 
 
-getEqMap :: Id -> StateT WorldState IO EqMap
+getEqMap :: Id -> MudStack EqMap
 getEqMap i = do
     ws <- get
     return (ws^.eqTbl.at i.to fromJust)
 
 
-getPlaEqMap :: StateT WorldState IO EqMap
+getPlaEqMap :: MudStack EqMap
 getPlaEqMap = getEqMap 0
 
 
-getEq :: Id -> StateT WorldState IO Inv
+getEq :: Id -> MudStack Inv
 getEq i = do
     em <- getEqMap i
     return (M.elems em)
 
 
-getPlaEq :: StateT WorldState IO Inv
+getPlaEq :: MudStack Inv
 getPlaEq = getEq 0
 
 
-getMob :: Id -> StateT WorldState IO Mob
+getMob :: Id -> MudStack Mob
 getMob i = do
     ws <- get
     return (ws^.mobTbl.at i.to fromJust)
 
 
-getMobHand :: Id -> StateT WorldState IO Hand
+getMobHand :: Id -> MudStack Hand
 getMobHand i = do
     m <- getMob i
     return (m^.hand)
 
 
-getPlaMobHand :: StateT WorldState IO Hand
+getPlaMobHand :: MudStack Hand
 getPlaMobHand = getMobHand 0
 
 
-getPlaRmId :: StateT WorldState IO Id
+getPlaRmId :: MudStack Id
 getPlaRmId = do
     ws <- get
     return (ws^.pla.rmId)
 
 
-getPlaRm :: StateT WorldState IO Rm
+getPlaRm :: MudStack Rm
 getPlaRm = do
     ws <- get
     i <- getPlaRmId
     return (ws^.rmTbl.at i.to fromJust)
 
 
-getPlaRmInv :: StateT WorldState IO Inv
+getPlaRmInv :: MudStack Inv
 getPlaRmInv = do
     ws <- get
     i <- getPlaRmId
     return (ws^.invTbl.at i.to fromJust)
 
 
-getPlaRmNextRmId :: (Rm -> Id) -> StateT WorldState IO (Maybe Id)
+getPlaRmNextRmId :: (Rm -> Id) -> MudStack (Maybe Id)
 getPlaRmNextRmId dir = getPlaRm >>= tryId . dir
   where
     tryId nextId | nextId == deadEnd = return Nothing
