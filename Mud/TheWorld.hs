@@ -151,10 +151,10 @@ world = do
 
     putWpn iLongSword (Ent iLongSword "sword" "two-handed long sword" "" "What a big sword! With the right technique it could do a great deal of damage." 0) (Obj 1 1) (Wpn TwoHanded 5 20)
 
-    putCloth iBracelet1 (Ent iBracelet1 "bracelet" "silver bracelet" "" "It's a simple bronze bracelet." 0) (Obj 1 1) (Cloth WristC)
-    putCloth iBracelet2 (Ent iBracelet2 "bracelet" "bronze bracelet" "" "It's a simple silver bracelet." 0) (Obj 1 1) (Cloth WristC)
-    putCloth iBracelet3 (Ent iBracelet3 "bracelet" "gold bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
-    putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) (Cloth WristC)
+    putCloth iBracelet1 (Ent iBracelet1 "bracelet" "silver bracelet" "" "It's a simple bronze bracelet." 0) (Obj 1 1) WristC
+    putCloth iBracelet2 (Ent iBracelet2 "bracelet" "bronze bracelet" "" "It's a simple silver bracelet." 0) (Obj 1 1) WristC
+    putCloth iBracelet3 (Ent iBracelet3 "bracelet" "gold bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) WristC
+    putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) WristC
 
 
 createWorld :: MudStack ()

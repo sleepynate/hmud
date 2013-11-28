@@ -48,19 +48,16 @@ data Obj = Obj { _weight  :: Int
 
 -- Has an object (and an entity).
 
-data Cloth = Cloth ClothSub deriving (Eq, Show)
-
-data ClothSub = HeadC
-              | EarC
-              | NoseC
-              | NeckC
-              | WristC
-              | FingerC
-              | UpBodyC
-              | LowBodyC
-              | FullBodyC
-              | BackC
-              | FeetC deriving (Eq, Show)
+data Cloth = EarC
+           | NoseC
+           | NeckC
+           | WristC
+           | FingerC
+           | UpBodyC
+           | LowBodyC
+           | FullBodyC
+           | BackC
+           | FeetC deriving (Eq, Show)
 
 -----
 
@@ -68,7 +65,7 @@ data ClothSub = HeadC
 
 type Cap = Int
 
-data Con = Con Cap deriving (Eq, Show)
+newtype Con = Con Cap deriving (Eq, Show)
 
 -----
 

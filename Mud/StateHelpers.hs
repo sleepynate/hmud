@@ -38,7 +38,7 @@ output :: T.Text -> MudStack ()
 output = lift . T.putStrLn
 
 
-outputCon :: [T.Text] -> MudStack () -- Prefer over "output" when there would be more than two "(<>)"s.
+outputCon :: [T.Text] -> MudStack () -- Prefer over "output" when there would be more than two "<>"s.
 outputCon = lift . T.putStrLn . T.concat
 
 

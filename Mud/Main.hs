@@ -596,36 +596,34 @@ readyCloth i e em mrol = do
   where
     readiedMsg s = do
         c <- getCloth i
-        let Cloth ct = c
-        case ct of FingerC -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.at s.to fromJust, "." ]
-                   WristC  -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.at s.to fromJust, "." ]
-                   _       -> undefined
+        case c of FingerC -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.at s.to fromJust, "." ]
+                  WristC  -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.at s.to fromJust, "." ]
+                  _       -> undefined
 
 
 getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot) -- TODO: Refactor?
 getDesigClothSlot i e em rol = do
     c <- getCloth i
-    let Cloth ct = c
-    case ct of FingerC -> if not . isRingROL $ rol
-                            then sorryIsRing
-                            else let rs = case rol of RIF -> RIndexFS
-                                                      RMF -> RMidFS
-                                                      RRF -> RRingFS
-                                                      RPF -> RPinkyFS
-                                                      LIF -> LIndexFS
-                                                      LMF -> LMidFS
-                                                      LRF -> LRingFS
-                                                      LPF -> LPinkyFS
-                                                      _   -> undefined
-                                 in case em^.at rs of Nothing -> return (Just rs)
-                                                      Just i' -> getEnt i' >>= sorry rs
-               WristC  -> if isRingROL rol
-                            then sorryNotRing
-                            else let mws = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
-                                                       L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
-                                                       _ -> undefined
-                                 in if isNothing mws then sorryWrist else return mws
-               _       -> undefined
+    case c of FingerC -> if not . isRingROL $ rol
+                           then sorryIsRing
+                           else let rs = case rol of RIF -> RIndexFS
+                                                     RMF -> RMidFS
+                                                     RRF -> RRingFS
+                                                     RPF -> RPinkyFS
+                                                     LIF -> LIndexFS
+                                                     LMF -> LMidFS
+                                                     LRF -> LRingFS
+                                                     LPF -> LPinkyFS
+                                                     _   -> undefined
+                                in case em^.at rs of Nothing -> return (Just rs)
+                                                     Just i' -> getEnt i' >>= sorry rs
+              WristC  -> if isRingROL rol
+                           then sorryNotRing
+                           else let mws = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
+                                                      L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
+                                                      _ -> undefined
+                                in if isNothing mws then sorryWrist else return mws
+              _       -> undefined
   where
     sorry s e'   = outputCon [ "You're already wearing a ", e'^.sing, " on your ", slotNamesMap^.at s.to fromJust, "." ] >> return Nothing
     sorryIsRing  = output ringHelp >> return Nothing
