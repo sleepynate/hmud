@@ -29,7 +29,7 @@ type MudStack = StateT WorldState IO
 -- General purpose convenience methods:
 
 
-infixr 7 <>
+infixl 7 <>
 (<>) :: T.Text -> T.Text -> T.Text
 (<>) = T.append
 
