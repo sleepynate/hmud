@@ -7,33 +7,30 @@ import Mud.DataTypes
 import Mud.Ids
 import Mud.StateHelpers
 
-import Control.Lens (at, to)
-import Control.Lens.Operators ((^.), (?=))
-import Control.Monad (liftM, unless, when)
+import Control.Lens (at, ix, to)
+import Control.Lens.Operators ((^.), (^?!), (?=))
+import Control.Monad (unless, when)
 import Control.Monad.Trans.State
+import Data.Functor
 import Data.List ((\\))
-import Data.Maybe (fromJust)
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 
 
 getUnusedId :: MudStack Id
-getUnusedId = liftM findAvailKey allKeys
+getUnusedId = findAvailKey <$> allKeys
 
 
 findAvailKey :: [Int] -> Int
-findAvailKey xs = head $ [0..] \\ xs
+findAvailKey = head . (\\) [0..]
 
 
 allKeys :: MudStack Inv
-allKeys = do
-    ws <- get
-    return (ws^.typeTbl.to IM.keys)
+allKeys = gets (^.typeTbl.to IM.keys)
 
 
 ensureSafeId :: Id -> MudStack ()
-ensureSafeId i = do
-    ks <- allKeys
+ensureSafeId i = allKeys >>= \ks ->
     unless (null ks) $ when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
 
 
@@ -104,19 +101,7 @@ putRm i is r = do
 
 
 initWS :: WorldState
-initWS = WorldState
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  (IM.fromList [])
-  initPla
+initWS = WorldState IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty IM.empty initPla
 
 
 initPla :: Pla
@@ -162,16 +147,9 @@ createWorld = output "Creating the world..." >> world >> output "Sorting all inv
 
 
 sortAllInvs :: MudStack ()
-sortAllInvs = do
-    ws <- get
-    let ks = ws^.invTbl.to IM.keys
-    mapM_ sortEach ks
+sortAllInvs = gets (^.invTbl.to IM.keys) >>= mapM_ sortEach
   where
-    sortEach k = do
-        ws <- get
-        let is = ws^.invTbl.at k.to fromJust
-        is' <- sortInv is
-        invTbl.at k ?= is'
+    sortEach k = gets (^?!invTbl.ix k) >>= sortInv >>= (invTbl.at k ?=)
 
 
 -----
@@ -195,6 +173,6 @@ mkOkapi = do
                 , _fp = 10
                 , _xp = 50
                 , _hand = NoHand }
-    putMob i e [] (M.fromList []) m
+    putMob i e [] M.empty m
     addToInv [i] iHill -- Will sort the inv.
     return i

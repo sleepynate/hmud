@@ -41,8 +41,8 @@ instance HasFlags Ent where
 
 -- Has an entity.
 
-data Obj = Obj { _weight  :: Int
-               , _vol     :: Int } deriving (Eq, Show)
+data Obj = Obj { _weight :: Int
+               , _vol    :: Int } deriving (Eq, Show)
 
 -----
 

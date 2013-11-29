@@ -6,17 +6,16 @@ module Mud.StateHelpers where
 import Mud.DataTypes
 import Mud.Ids (deadEnd)
 
-import Control.Lens (at, to)
-import Control.Lens.Operators ((^.), (?=))
-import Control.Monad (liftM)
+import Control.Lens (_1, _2, at, ix)
+import Control.Lens.Operators ((^.), (^?!), (?=))
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
+import Control.Applicative
 import Data.Char (isDigit)
 import Data.List (delete, sort, sortBy)
-import Data.Maybe (fromJust)
 import Data.Monoid (mappend)
-import Data.Text.Strict.Lens (packed, unpacked)
 import Data.Text.Read (decimal)
+import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -43,7 +42,7 @@ outputCon = lift . T.putStrLn . T.concat
 
 
 showText :: (Show a) => a -> T.Text
-showText a = show a ^.packed
+showText a = show a^.packed
 
 
 aOrAn :: T.Text -> T.Text
@@ -77,7 +76,7 @@ quoteWithAndPad :: (T.Text, T.Text) -> Int -> T.Text -> T.Text
 quoteWithAndPad q x t = quoteWith q t' <> T.replicate p " "
   where
     t' = T.take (x - ql - 1) t
-    ql = sum . map T.length $ [fst q, snd q]
+    ql = sum . map T.length $ [q^._1, q^._2]
     p  = x - (T.length t') - 2
 
 
@@ -87,10 +86,6 @@ bracketPad = quoteWithAndPad ("[", "]")
 
 parensPad :: Int -> T.Text -> T.Text
 parensPad = quoteWithAndPad ("(", ")")
-
-
-fstOf3 :: (a, b, c) -> a
-fstOf3 (a, _, _) = a
 
 
 findAbbrev :: T.Text -> [T.Text] -> Maybe T.Text
@@ -108,9 +103,7 @@ deleteAllInList xs ys = foldr (\x ys' -> delete x ys') ys xs
 
 
 getEnt :: Id -> MudStack Ent
-getEnt i = do
-    ws <- get
-    return (ws^.entTbl.at i.to fromJust)
+getEnt i = gets (^?!entTbl.ix i)
 
 
 getEntIds :: [Ent] -> Inv
@@ -122,14 +115,12 @@ getEntsInInv = mapM getEnt
 
 
 getEntNamesInInv :: Inv -> MudStack [T.Text]
-getEntNamesInInv is = do
-    es <- getEntsInInv is
+getEntNamesInInv is = getEntsInInv is >>= \es ->
     return [ e^.name | e <- es ]
 
 
 getEntSingsInInv :: Inv -> MudStack [T.Text]
-getEntSingsInInv is = do
-    es <- getEntsInInv is
+getEntSingsInInv is = getEntsInInv is >>= \es ->
     return [ e^.sing | e <- es ]
 
 
@@ -141,9 +132,7 @@ getEntBothGramNos e = (e^.sing, e^.plur)
 
 
 getEntBothGramNosInInv :: Inv -> MudStack [BothGramNos]
-getEntBothGramNosInInv is = do
-    es <- getEntsInInv is
-    return (map getEntBothGramNos es)
+getEntBothGramNosInInv is = map getEntBothGramNos <$> getEntsInInv is
 
 
 makePlurFromBoth :: BothGramNos -> Plur
@@ -168,10 +157,10 @@ slotChar   = ':'
 
 getEntsInInvByName :: T.Text -> Inv -> MudStack GetEntResult
 getEntsInInvByName searchName is
-  | searchName == [allChar]^.packed = liftM (Mult searchName . Just) $ getEntsInInv is
+  | searchName == [allChar]^.packed = (Mult searchName . Just) <$> getEntsInInv is
   | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
   | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
-                                      noInt  = either undefined fst $ decimal noText
+                                      noInt  = either undefined (^._1) $ decimal noText
                                       rest   = T.drop (T.length noText) searchName
                                   in parse rest noInt
   | otherwise = getMultEnts 1 searchName is
@@ -191,7 +180,7 @@ getMultEnts a n is
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
     notFound = return (Mult n Nothing)
-    found fullName = liftM (Mult n . Just . takeMatchingEnts fullName) $ getEntsInInv is
+    found fullName = (Mult n . Just . takeMatchingEnts fullName) <$> getEntsInInv is
     takeMatchingEnts fn = take a . filter (\e -> e^.name == fn)
 
 
@@ -201,11 +190,9 @@ getIndexedEnt x n is
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
     notFound = return (Indexed x n . Left $ "")
-    found fullName = do
-        es <- getEntsInInv is
-        let matches = filter (\e -> e^.name == fullName) es
+    found fullName = filter (\e -> e^.name == fullName) <$> getEntsInInv is >>= \matches ->
         if length matches < x
-          then let both = getEntBothGramNos (head matches)
+          then let both = getEntBothGramNos $ head matches
                in return (Indexed x n . Left . makePlurFromBoth $ both)
           else return (Indexed x n . Right $ matches !! (x - 1))
 
@@ -251,23 +238,20 @@ data RightOrLeft = R
 
 getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft) -- TODO: Refactor?
 getEntToReadyByName searchName
-  | slotChar `elem` searchName^.unpacked = do
-      let (xs, ys) = T.break (== slotChar) searchName
-      if T.length ys == 1 then sorry else do
-          me <- findEntToReady xs
-          case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
-                                            "l"   -> return (me, Just L)
-                                            "rif" -> return (me, Just RIF)
-                                            "rmf" -> return (me, Just RMF)
-                                            "rrf" -> return (me, Just RRF)
-                                            "rpf" -> return (me, Just RPF)
-                                            "lif" -> return (me, Just LIF)
-                                            "lmf" -> return (me, Just LMF)
-                                            "lrf" -> return (me, Just LRF)
-                                            "lpf" -> return (me, Just LPF)
-                                            _     -> sorry
-  | otherwise = do
-      me <- findEntToReady searchName
+  | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
+                                           in if T.length ys == 1 then sorry else findEntToReady xs >>= \me ->
+                                                  case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
+                                                                                    "l"   -> return (me, Just L)
+                                                                                    "rif" -> return (me, Just RIF)
+                                                                                    "rmf" -> return (me, Just RMF)
+                                                                                    "rrf" -> return (me, Just RRF)
+                                                                                    "rpf" -> return (me, Just RPF)
+                                                                                    "lif" -> return (me, Just LIF)
+                                                                                    "lmf" -> return (me, Just LMF)
+                                                                                    "lrf" -> return (me, Just LRF)
+                                                                                    "lpf" -> return (me, Just LPF)
+                                                                                    _     -> sorry
+  | otherwise = findEntToReady searchName >>= \me ->
       return (me, Nothing)
   where
     sorry = outputCon [ "Please specify ", dblQuote slotR, " or ", dblQuote slotL, ".\n", ringHelp ] >> return (Nothing, Nothing)
@@ -287,8 +271,7 @@ slotL = (slotChar : "l")^.packed
 
 
 findEntToReady :: T.Text -> MudStack (Maybe Ent) -- TODO: Refactor?
-findEntToReady searchName = do
-    mes <- getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName
+findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName >>= \mes ->
     case mes of Just [e]   -> return (Just e)
                 Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
                 Nothing    -> return Nothing
@@ -296,28 +279,21 @@ findEntToReady searchName = do
 
 
 getEntType :: Ent -> MudStack Type
-getEntType e = do
-    ws <- get
-    let i = e^.entId
-    return (ws^.typeTbl.at i.to fromJust)
+getEntType e = gets (^?!typeTbl.ix i)
+  where
+    i = e^.entId
 
 
 getCloth :: Id -> MudStack Cloth
-getCloth i = do
-    ws <- get
-    return (ws^.clothTbl.at i.to fromJust)
+getCloth i = gets (^?!clothTbl.ix i)
 
 
 getWpn :: Id -> MudStack Wpn
-getWpn i = do
-    ws <- get
-    return (ws^.wpnTbl.at i.to fromJust)
+getWpn i = gets (^?!wpnTbl.ix i)
 
 
 getInv :: Id -> MudStack Inv
-getInv i = do
-    ws <- get
-    return (ws^.invTbl.at i.to fromJust)
+getInv i = gets (^?!invTbl.ix i)
 
 
 getPlaInv :: MudStack Inv
@@ -325,25 +301,17 @@ getPlaInv = getInv 0
 
 
 addToInv :: Inv -> Id -> MudStack ()
-addToInv is ti = do
-    tis <- getInv ti
-    is' <- sortInv $ tis ++ is
-    invTbl.at ti ?= is'
+addToInv is ti = getInv ti >>= sortInv . (++ is) >>= (invTbl.at ti ?=)
 
 
 sortInv :: Inv -> MudStack Inv
-sortInv is = do
-    names <- getEntNamesInInv is
-    sings <- getEntSingsInInv is
-    let ins = zip3 is names sings
-    return (map fstOf3 $ sortBy nameThenSing ins)
+sortInv is = fmap (map (^._1) . sortBy nameThenSing) $ zip3 is <$> getEntNamesInInv is <*> getEntSingsInInv is
   where
     nameThenSing (_, n, s) (_, n', s') = (n `compare` n') `mappend` (s `compare` s')
 
 
 remFromInv :: Inv -> Id -> MudStack ()
-remFromInv is fi = do
-    fis <- getInv fi
+remFromInv is fi = getInv fi >>= \fis ->
     invTbl.at fi ?= (deleteAllInList is fis)
 
 
@@ -353,9 +321,7 @@ moveInv is fi ti = remFromInv is fi >> addToInv is ti
 
 
 getEqMap :: Id -> MudStack EqMap
-getEqMap i = do
-    ws <- get
-    return (ws^.eqTbl.at i.to fromJust)
+getEqMap i = gets (^?!eqTbl.ix i)
 
 
 getPlaEqMap :: MudStack EqMap
@@ -363,9 +329,7 @@ getPlaEqMap = getEqMap 0
 
 
 getEq :: Id -> MudStack Inv
-getEq i = do
-    em <- getEqMap i
-    return (M.elems em)
+getEq i = M.elems <$> getEqMap i
 
 
 getPlaEq :: MudStack Inv
@@ -373,15 +337,11 @@ getPlaEq = getEq 0
 
 
 getMob :: Id -> MudStack Mob
-getMob i = do
-    ws <- get
-    return (ws^.mobTbl.at i.to fromJust)
+getMob i = gets (^?!mobTbl.ix i)
 
 
 getMobHand :: Id -> MudStack Hand
-getMobHand i = do
-    m <- getMob i
-    return (m^.hand)
+getMobHand i = (^.hand) <$> getMob i
 
 
 getPlaMobHand :: MudStack Hand
@@ -389,23 +349,17 @@ getPlaMobHand = getMobHand 0
 
 
 getPlaRmId :: MudStack Id
-getPlaRmId = do
-    ws <- get
-    return (ws^.pla.rmId)
+getPlaRmId = gets (^.pla.rmId)
 
 
 getPlaRm :: MudStack Rm
-getPlaRm = do
-    ws <- get
-    i <- getPlaRmId
-    return (ws^.rmTbl.at i.to fromJust)
+getPlaRm = getPlaRmId >>= \i ->
+    gets (^?!rmTbl.ix i)
 
 
 getPlaRmInv :: MudStack Inv
-getPlaRmInv = do
-    ws <- get
-    i <- getPlaRmId
-    return (ws^.invTbl.at i.to fromJust)
+getPlaRmInv = getPlaRmId >>= \i ->
+    gets (^?!invTbl.ix i)
 
 
 getPlaRmNextRmId :: (Rm -> Id) -> MudStack (Maybe Id)
