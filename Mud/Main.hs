@@ -11,14 +11,14 @@ import Mud.TheWorld
 import Control.Arrow (first)
 import Control.Lens (at, ix, to)
 import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
-import Control.Monad (forM_, when, void)
+import Control.Monad ((>=>), forM_, when, void)
 import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.Functor
 import Data.List (delete, find, nub, sort)
-import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Maybe (fromJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -187,15 +187,12 @@ what (r:rs) = what [r] >> lift newLine >> what rs
 what      _ = undefined
 
 
--- TODO: Continue refactoring from here.
 whatInv :: InvType -> T.Text -> MudStack ()
 whatInv it r = do
-    is <- case it of PlaInv -> getPlaInv
-                     PlaEq  -> getPlaEq
-                     RmInv  -> getPlaRmInv
+    is <- getLocInv
     ger <- getEntsInInvByName r is
     case ger of
-      (Mult n (Just es)) | n == acp  -> output $ dblQuote acp <> " may refer to everything" <> loc
+      (Mult n (Just es)) | n == acp  -> output $ dblQuote acp <> " may refer to everything" <> locName
                          | otherwise ->
                            let e = head es
                                len = length es
@@ -203,22 +200,21 @@ whatInv it r = do
                              then let ebgns = take len [ getEntBothGramNos e' | e' <- es ]
                                       h = head ebgns
                                       target = if all (== h) ebgns then makePlurFromBoth h else e^.name.to bracketQuote
-                                  in outputCon [ dblQuote r, " may refer to the ", showText len, " ", target, loc ]
+                                  in outputCon [ dblQuote r, " may refer to the ", showText len, " ", target, locName ]
                              else getEntNamesInInv is >>= \ens ->
-                                 outputCon [ dblQuote r, " may refer to the ", checkFirst e ens, e^.sing, loc ]
-      (Indexed x _ (Right e)) -> outputCon [ dblQuote r, " may refer to the ", mkOrdinal x, " ", e^.name.to bracketQuote, " ", e^.sing.to parensQuote, loc ]
-      _                       -> output $ dblQuote r <> " doesn't refer to anything" <> loc
+                                 outputCon [ dblQuote r, " may refer to the ", checkFirst e ens, e^.sing, locName ]
+      (Indexed x _ (Right e)) -> outputCon [ dblQuote r, " may refer to the ", mkOrdinal x, " ", e^.name.to bracketQuote, " ", e^.sing.to parensQuote, locName ]
+      _                       -> output $ dblQuote r <> " doesn't refer to anything" <> locName
   where
-    acp = [allChar]^.packed
-    loc = case it of PlaInv -> " in your inventory."
-                     PlaEq  -> " in your readied equipment."
-                     RmInv  -> " in this room."
-
-
-checkFirst :: Ent -> [T.Text] -> T.Text
-checkFirst e ens = if length matches > 1 then "first " else ""
-  where
-    matches = filter (== e^.name) ens
+    getLocInv = case it of PlaInv -> getPlaInv
+                           PlaEq  -> getPlaEq
+                           RmInv  -> getPlaRmInv
+    acp       = [allChar]^.packed
+    locName   = case it of PlaInv -> " in your inventory."
+                           PlaEq  -> " in your readied equipment."
+                           RmInv  -> " in this room."
+    checkFirst e ens = let matches = filter (== e^.name) ens
+                       in if length matches > 1 then "first " else ""
 
 
 go :: T.Text -> Action
@@ -248,10 +244,8 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 
 
 look :: Action
-look [""]   = do
-    r <- getPlaRm
-    output $ r^.name <> "\n" <> r^.desc
-    getPlaRmInv >>= dispRmInv
+look [""]   = getPlaRm >>= \r ->
+    output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
 look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _      = undefined
@@ -321,9 +315,9 @@ descEq :: Id -> MudStack ()
 descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl ->
     if null edl then none else header >> forM_ edl output
   where
-    mkSlotNameToIdList = map (first getSlotName)
-    getSlotName s = fromJust . M.lookup s $ slotNamesMap
-    mkEqDescList = mapM descEqHelper
+    mkSlotNameToIdList    = map (first getSlotName)
+    getSlotName s         = fromJust . M.lookup s $ slotNamesMap
+    mkEqDescList          = mapM descEqHelper
     descEqHelper (sn, i') = getEnt i' >>= \e ->
         return (T.concat [ parensPad 15 sn, e^.sing, " ", e^.name.to bracketQuote ])
     none
@@ -412,7 +406,7 @@ putRemDispatcher _ _ = undefined
 
 
 putHelper :: Id -> Rest -> MudStack ()
-putHelper _ []      = return ()
+putHelper _  []     = return ()
 putHelper ci (r:rs) = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= \mes ->
     case mes of Nothing -> next
                 Just es -> let is = getEntIds es
@@ -430,7 +424,7 @@ putHelper ci (r:rs) = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv
 
 
 remHelper :: Id -> Rest -> MudStack ()
-remHelper _ []      = return ()
+remHelper _  []     = return ()
 remHelper ci (r:rs) = do
     ce <- getEnt ci
     fis <- getInv ci
@@ -462,15 +456,15 @@ ready (r:rs) = ready [r] >> ready rs
 ready _      = undefined
 
 
-readyDispatcher :: (Maybe Ent, Maybe RightOrLeft) -> MudStack () -- TODO: Refactor?
-readyDispatcher (Nothing, _)   = return ()
-readyDispatcher (Just e, mrol) = do
+readyDispatcher :: (Maybe Ent, Maybe RightOrLeft) -> MudStack ()
+readyDispatcher (Nothing, _)    = return ()
+readyDispatcher (Just e,  mrol) = do
     let i = e^.entId
     em <- getPlaEqMap
     t <- getEntType e
     case t of ClothType -> readyCloth i e em mrol
-              WpnType   -> readyWpn i e em mrol
-              ArmType   -> undefined
+              WpnType   -> readyWpn   i e em mrol
+              ArmType   -> undefined -- TODO
               _         -> output $ "You can't ready a " <> e^.sing <> "."
 
 
@@ -488,52 +482,43 @@ findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
 findAvailSlot em = find (isSlotAvail em)
 
 
-readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack () -- TODO: Refactor?
+moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
+moveReadiedItem i em s = eqTbl.at 0 ?= (em & at s ?~ i) >> remFromInv [i] 0
+
+
+readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
 readyWpn i e em mrol
-  | isJust (em^.at BothHandsS) = void . output $ "You're already wielding a two-handed weapon."
-  | otherwise = do
-      ms <- case mrol of Just rol -> getDesigWpnSlot e em rol
-                         Nothing  -> getAvailWpnSlot em
-      case ms of Nothing -> return ()
-                 Just s  -> do
-                     w <- getWpn i
-                     let wt = w^.wpnSub
-                     case wt of OneHanded -> do
-                                    let em' = em & at s ?~ i
-                                    eqTbl.at 0 ?= em'
-                                    remFromInv [i] 0
-                                    outputCon [ "You wield the ", e^.sing, " with your ", slotNamesMap^.ix s, "." ]
-                                TwoHanded -> do
-                                    if all (isSlotAvail em) [RHandS, LHandS]
-                                      then do
-                                          let em' = em & at BothHandsS ?~ i
-                                          eqTbl.at 0 ?= em'
-                                          remFromInv [i] 0
-                                          output $ "You wield the " <> e^.sing <> " with both hands."
-                                      else output $ "Both hands are required to weild the " <> e^.sing <> "."
+  | not . isSlotAvail em $ BothHandsS = void . output $ "You're already wielding a two-handed weapon."
+  | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
+  where
+    readyHelper s w = let wt = w^.wpnSub
+                      in case wt of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", slotNamesMap^.ix s, "." ]
+                                    TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
+                                                   then moveReadiedItem i em BothHandsS >> output ("You wield the " <> e^.sing <> " with both hands.")
+                                                   else output $ "Both hands are required to weild the " <> e^.sing <> "."
 
 
-getDesigWpnSlot :: Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot) -- TODO: Refactor?
+getDesigWpnSlot :: Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
 getDesigWpnSlot e em rol
   | isRingROL rol = sorryNotRing
-  | otherwise = let s = case rol of R -> RHandS
-                                    L -> LHandS
-                                    _ -> undefined
-                in case em^.at s of Nothing -> return (Just s)
-                                    Just i  -> getEnt i >>= sorry s
+  | otherwise     = maybe (return (Just desigSlot)) (getEnt >=> sorry) $ em^.at desigSlot
   where
-    sorry s e'   = outputCon [ "You're already wielding a ", e'^.sing, " with your ", slotNamesMap^.ix s, "." ] >> return Nothing
     sorryNotRing = output ("You can't wield a " <> e^.sing <> " with your finger!") >> return Nothing
+    desigSlot    = case rol of R -> RHandS
+                               L -> LHandS
+                               _ -> undefined
+    sorry e'     = outputCon [ "You're already wielding a ", e'^.sing, " with your ", slotNamesMap^.ix desigSlot, "." ] >> return Nothing
 
 
-getAvailWpnSlot :: EqMap -> MudStack (Maybe Slot) -- TODO: Refactor?
-getAvailWpnSlot em = do
-    h <- getPlaMobHand
+getAvailWpnSlot :: EqMap -> MudStack (Maybe Slot)
+getAvailWpnSlot em = getPlaMobHand >>= \h ->
     let s = getSlotForHand h
-    case em^.at s of Nothing -> return (Just s)
-                     Just _  -> let s' = getSlotForOtherHand h
-                                in case em^.at s' of Nothing -> return (Just s')
-                                                     Just _  -> sorry
+    in if isSlotAvail em s
+      then return (Just s)
+      else let s' = getSlotForOtherHand h
+           in if isSlotAvail em s'
+             then return (Just s')
+             else sorry
   where
     getSlotForHand h      = case h of RHand -> RHandS
                                       LHand -> LHandS
@@ -544,62 +529,50 @@ getAvailWpnSlot em = do
     sorry = output "You're already wielding two weapons." >> return Nothing
 
 
-readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack () -- TODO: Refactor?
-readyCloth i e em mrol = do
-    ms <- case mrol of Just rol -> getDesigClothSlot i e em rol
-                       Nothing  -> undefined
-    case ms of Nothing -> return ()
-               Just s  -> do
-                   let em' = em & at s ?~ i
-                   eqTbl.at 0 ?= em'
-                   remFromInv [i] 0
-                   readiedMsg s
+readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
+readyCloth i e em mrol = maybe undefined (getDesigClothSlot i e em) mrol >>= maybe (return ()) (\s -> moveReadiedItem i em s >> readiedMsg s)
+                               -- ^^ TODO
   where
-    readiedMsg s = do
-        c <- getCloth i
-        case c of FingerC -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.ix s, "." ]
-                  WristC  -> outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.ix s, "." ]
-                  _       -> undefined
+    readiedMsg s = getCloth i >>= \c ->
+        case c of FingerC -> genericWearMsg
+                  WristC  -> genericWearMsg
+                  _       -> undefined -- TODO
+      where
+        genericWearMsg = outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.ix s, "." ]
 
 
-getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot) -- TODO: Refactor?
+getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
 getDesigClothSlot i e em rol = getCloth i >>= \c ->
-    case c of FingerC -> if not . isRingROL $ rol
-                           then sorryIsRing
-                           else let rs = case rol of RIF -> RIndexFS
-                                                     RMF -> RMidFS
-                                                     RRF -> RRingFS
-                                                     RPF -> RPinkyFS
-                                                     LIF -> LIndexFS
-                                                     LMF -> LMidFS
-                                                     LRF -> LRingFS
-                                                     LPF -> LPinkyFS
-                                                     _   -> undefined
-                                in case em^.at rs of Nothing -> return (Just rs)
-                                                     Just i' -> getEnt i' >>= sorry rs
-              WristC  -> if isRingROL rol
-                           then sorryNotRing
-                           else let mws = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
-                                                      L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
-                                                      _ -> undefined
-                                in if isNothing mws then sorryWrist else return mws
-              _       -> undefined
+    case c of FingerC | not . isRingROL $ rol -> sorryNotRingROL
+                      | otherwise             -> maybe (return (Just desigRingSlot)) (getEnt >=> sorry desigRingSlot) $ em^.at desigRingSlot
+              WristC  | isRingROL rol -> sorryNotRing
+                      | otherwise     -> if isNothing desigWristSlot then sorryFullWrist else return desigWristSlot
+              _       -> undefined -- TODO
   where
-    sorry s e'   = outputCon [ "You're already wearing a ", e'^.sing, " on your ", slotNamesMap^.ix s, "." ] >> return Nothing
-    sorryIsRing  = output ringHelp >> return Nothing
-    sorryNotRing = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
-    sorryWrist   = output "You can't wear any more accessories on your wrist."   >> return Nothing
+    sorryNotRingROL = output ringHelp >> return Nothing
+    desigRingSlot   = case rol of RIF -> RIndexFS
+                                  RMF -> RMidFS
+                                  RRF -> RRingFS
+                                  RPF -> RPinkyFS
+                                  LIF -> LIndexFS
+                                  LMF -> LMidFS
+                                  LRF -> LRingFS
+                                  LPF -> LPinkyFS
+                                  _   -> undefined
+    desigWristSlot  = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
+                                  L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
+                                  _ -> undefined
+    sorry s e'      = outputCon [ "You're already wearing a ", e'^.sing, " on your ", slotNamesMap^.ix s, "." ] >> return Nothing
+    sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
+    sorryFullWrist  = output "You can't wear any more accessories on your wrist."   >> return Nothing
 
 
 unready :: Action
 unready [""]   = output "What do you want to unready?"
 unready [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
   where
-    shuffleInv es = do
-        let is = getEntIds es
-        em <- getPlaEqMap
-        eqTbl.at 0 ?= M.filter (`notElem` is) em
-        addToInv is 0 >> descUnready is
+    shuffleInv es = let is = getEntIds es
+                    in M.filter (`notElem` is) <$> getPlaEqMap >>= (eqTbl.at 0 ?=) >> addToInv is 0 >> descUnready is
 unready (r:rs) = unready [r] >> unready rs
 unready _      = undefined
 
@@ -631,11 +604,11 @@ buffCheck _ = lift buffCheckHelper
 
 dumpEnv :: Action
 dumpEnv [""] = lift $ getEnvironment >>= dumpAssocList
-dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepBoth
+dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepPair
   where
-    grepBoth = \(k, v) -> r `T.isInfixOf` (k^.packed) || r `T.isInfixOf` (v^.packed)
+    grepPair (k, v) = r `T.isInfixOf` (k^.packed) || r `T.isInfixOf` (v^.packed)
 dumpEnv (r:rs) = dumpEnv [r] >> dumpEnv rs
-dumpEnv _    = undefined
+dumpEnv _      = undefined
 
 
 uptime :: Action
