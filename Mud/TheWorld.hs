@@ -3,6 +3,7 @@
 
 module Mud.TheWorld where
 
+import Mud.Convenience
 import Mud.DataTypes
 import Mud.Ids
 import Mud.StateHelpers
@@ -21,7 +22,7 @@ getUnusedId :: MudStack Id
 getUnusedId = findAvailKey <$> allKeys
 
 
-findAvailKey :: [Int] -> Int
+findAvailKey :: Inv -> Id
 findAvailKey = head . (\\) [0..]
 
 
@@ -32,6 +33,9 @@ allKeys = gets (^.typeTbl.to IM.keys)
 ensureSafeId :: Id -> MudStack ()
 ensureSafeId i = allKeys >>= \ks ->
     unless (null ks) $ when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
+
+
+-----
 
 
 putObj :: Id -> Ent -> Obj -> MudStack ()
@@ -109,8 +113,8 @@ initPla = Pla { _rmId = iHill
               , _race = Human }
 
 
-world :: MudStack ()
-world = do
+createWorld :: MudStack ()
+createWorld = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 LHand)
 
     putRm  iHill [iGP1, iLongSword] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
@@ -142,8 +146,9 @@ world = do
     putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) WristC
 
 
-createWorld :: MudStack ()
-createWorld = output "Creating the world..." >> world >> output "Sorting all inventories...\n" >> sortAllInvs
+initialize :: MudStack ()
+initialize = output "Creating the world..." >> createWorld >> 
+             output "Sorting all inventories...\n" >> sortAllInvs
 
 
 sortAllInvs :: MudStack ()

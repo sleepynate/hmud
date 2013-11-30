@@ -3,103 +3,21 @@
 
 module Mud.StateHelpers where
 
+import Mud.Convenience
 import Mud.DataTypes
 import Mud.Ids (deadEnd)
 
-import Control.Lens (_1, _2, at, ix)
-import Control.Lens.Operators ((^.), (^?!), (?=))
-import Control.Monad.Trans.Class (lift)
-import Control.Monad.Trans.State
 import Control.Applicative
+import Control.Lens (_1, at, ix)
+import Control.Lens.Operators ((^.), (^?!), (?=))
+import Control.Monad.Trans.State
 import Data.Char (isDigit)
-import Data.List (delete, sort, sortBy)
+import Data.List (sortBy)
 import Data.Monoid (mappend)
 import Data.Text.Read (decimal)
 import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-import qualified Data.Text.IO as T
-
-
-type MudStack = StateT WorldState IO
-
-
--- ==================================================
--- General purpose convenience methods:
-
-
-infixl 7 <>
-(<>) :: T.Text -> T.Text -> T.Text
-(<>) = T.append
-
-
-output :: T.Text -> MudStack ()
-output = lift . T.putStrLn
-
-
-outputCon :: [T.Text] -> MudStack () -- Prefer over "output" when there would be more than two "<>"s.
-outputCon = lift . T.putStrLn . T.concat
-
-
-showText :: (Show a) => a -> T.Text
-showText a = show a^.packed
-
-
-aOrAn :: T.Text -> T.Text
-aOrAn "" = undefined
-aOrAn t
-  | T.head t `elem` ("aeiou"^.unpacked) = "an " <> t
-  | otherwise = "a " <> t
-
-
-quoteWith :: (T.Text, T.Text) -> T.Text -> T.Text
-quoteWith (a, b) t = T.concat [ a, t, b ]
-
-
-dblQuote :: T.Text -> T.Text
-dblQuote = quoteWith ("\"", "\"")
-
-
-bracketQuote :: T.Text -> T.Text
-bracketQuote = quoteWith ("[", "]")
-
-
-parensQuote :: T.Text -> T.Text
-parensQuote = quoteWith ("(", ")")
-
-
-unquote :: T.Text -> T.Text
-unquote = T.init . T.tail
-
-
-quoteWithAndPad :: (T.Text, T.Text) -> Int -> T.Text -> T.Text
-quoteWithAndPad q x t = quoteWith q t' <> T.replicate p " "
-  where
-    t' = T.take (x - ql - 1) t
-    ql = sum . map T.length $ [q^._1, q^._2]
-    p  = x - (T.length t') - 2
-
-
-bracketPad :: Int -> T.Text -> T.Text
-bracketPad = quoteWithAndPad ("[", "]")
-
-
-parensPad :: Int -> T.Text -> T.Text
-parensPad = quoteWithAndPad ("(", ")")
-
-
-findAbbrev :: T.Text -> [T.Text] -> Maybe T.Text
-findAbbrev needle hay = if null res then Nothing else Just . head $ res
-  where
-    res = sort . filter (needle `T.isPrefixOf`) $ hay
-
-
-deleteAllInList :: (Eq a) => [a] -> [a] -> [a]
-deleteAllInList xs ys = foldr (\x ys' -> delete x ys') ys xs
-
-
--- ==================================================
--- Convenience methods for dealing with state:
 
 
 getEnt :: Id -> MudStack Ent
@@ -189,12 +107,12 @@ getIndexedEnt x n is
   | x < 1     = return Sorry
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
-    notFound = return (Indexed x n . Left $ "")
+    notFound = return (Indexed x n (Left ""))
     found fullName = filter (\e -> e^.name == fullName) <$> getEntsInInv is >>= \matches ->
         if length matches < x
           then let both = getEntBothGramNos $ head matches
-               in return (Indexed x n . Left . makePlurFromBoth $ both)
-          else return (Indexed x n . Right $ matches !! (x - 1))
+               in return (Indexed x n (Left $ makePlurFromBoth both))
+          else return (Indexed x n (Right $ matches !! (x - 1)))
 
 
 procGetEntResRm :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
@@ -236,21 +154,21 @@ data RightOrLeft = R
                  | LIF | LMF | LRF | LPF
 
 
-getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft) -- TODO: Refactor?
+getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)
 getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
                                            in if T.length ys == 1 then sorry else findEntToReady xs >>= \me ->
-                                                  case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
-                                                                                    "l"   -> return (me, Just L)
-                                                                                    "rif" -> return (me, Just RIF)
-                                                                                    "rmf" -> return (me, Just RMF)
-                                                                                    "rrf" -> return (me, Just RRF)
-                                                                                    "rpf" -> return (me, Just RPF)
-                                                                                    "lif" -> return (me, Just LIF)
-                                                                                    "lmf" -> return (me, Just LMF)
-                                                                                    "lrf" -> return (me, Just LRF)
-                                                                                    "lpf" -> return (me, Just LPF)
-                                                                                    _     -> sorry
+                                              case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
+                                                                                "l"   -> return (me, Just L)
+                                                                                "rif" -> return (me, Just RIF)
+                                                                                "rmf" -> return (me, Just RMF)
+                                                                                "rrf" -> return (me, Just RRF)
+                                                                                "rpf" -> return (me, Just RPF)
+                                                                                "lif" -> return (me, Just LIF)
+                                                                                "lmf" -> return (me, Just LMF)
+                                                                                "lrf" -> return (me, Just LRF)
+                                                                                "lpf" -> return (me, Just LPF)
+                                                                                _     -> sorry
   | otherwise = findEntToReady searchName >>= \me ->
       return (me, Nothing)
   where
@@ -270,7 +188,7 @@ slotR = (slotChar : "r")^.packed
 slotL = (slotChar : "l")^.packed
 
 
-findEntToReady :: T.Text -> MudStack (Maybe Ent) -- TODO: Refactor?
+findEntToReady :: T.Text -> MudStack (Maybe Ent)
 findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName >>= \mes ->
     case mes of Just [e]   -> return (Just e)
                 Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
@@ -279,9 +197,8 @@ findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= proc
 
 
 getEntType :: Ent -> MudStack Type
-getEntType e = gets (^?!typeTbl.ix i)
-  where
-    i = e^.entId
+getEntType e = let i = e^.entId
+               in gets (^?!typeTbl.ix i)
 
 
 getCloth :: Id -> MudStack Cloth
@@ -316,7 +233,7 @@ remFromInv is fi = getInv fi >>= \fis ->
 
 
 moveInv :: Inv -> Id -> Id -> MudStack ()
-moveInv [] _ _   = return ()
+moveInv [] _  _  = return ()
 moveInv is fi ti = remFromInv is fi >> addToInv is ti
 
 

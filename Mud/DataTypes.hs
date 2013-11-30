@@ -4,6 +4,7 @@
 module Mud.DataTypes where
 
 import Control.Lens (Lens', lens, makeLenses)
+import Control.Monad.Trans.State
 import qualified Data.IntMap.Strict as IM
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -232,6 +233,8 @@ data WorldState = WorldState { _entTbl   :: EntTbl
                              , _eqTbl    :: EqTable
                              , _typeTbl  :: TypeTbl
                              , _pla      :: Pla }
+
+type MudStack a = StateT WorldState IO a
 
 -----
 

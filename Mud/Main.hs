@@ -3,6 +3,7 @@
 
 module Mud.Main (main) where
 
+import Mud.Convenience
 import Mud.DataTypes
 import Mud.StateHelpers
 import Mud.TheWorld
@@ -15,6 +16,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Monad.Trans.State
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
+import Data.Functor
 import Data.List (delete, find, nub, sort)
 import Data.Maybe (fromJust, isJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
@@ -30,10 +32,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Process (readProcess)
 
 
--- TODO: Refactor this file:
--- Use fmap and/or <$> to lift. Use <*> where you can. Examine this file and look for general refactoring possibilities.
-
-
 -- TODO: Split into more modules. Trim down Main until it contains just the "main" function and the bare minimum. Make modules export only what they need to export.
 
 
@@ -43,48 +41,20 @@ import System.Process (readProcess)
 
 
 -- ==================================================
--- Top level definitions and convenience methods:
+-- Top level definitions:
 
 
 ver :: T.Text
-ver = "0.0 2013-10"
+ver = "0.0 since 2013-10"
 
 
 mudDir :: FilePath
-mudDir = home ++ "/hmud/Mud/"^.unpacked
-  where
-    home = unsafePerformIO . getEnv $ "HOME"
+mudDir = let home = unsafePerformIO . getEnv $ "HOME"
+         in home ++ "/hmud/Mud/"^.unpacked
 
 
 helpDir :: FilePath
 helpDir = mudDir ++ "help/"
-
-
-nl, tab :: Char
-nl  = '\n'
-tab = '\t'
-
-
-newLine :: IO ()
-newLine = putChar nl
-
-
-dumpAssocList :: (Show a, Show b) => [(a, b)] -> IO ()
-dumpAssocList = mapM_ dump
-  where
-    dump (a, b) = T.putStrLn $ (unquote . showText $ a) <> " : " <> showText b
-
-
-mkOrdinal :: Int -> T.Text
-mkOrdinal 0  = undefined
-mkOrdinal 11 = "11th"
-mkOrdinal 12 = "12th"
-mkOrdinal 13 = "13th"
-mkOrdinal x  = let t = showText x
-               in t <> case T.last t of '1' -> "st"
-                                        '2' -> "nd"
-                                        '3' -> "rd"
-                                        _   -> "th"
 
 
 -- ==================================================
@@ -133,7 +103,8 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
 
 
 main :: IO ()
-main = setCurrentDirectory mudDir >> welcomeMsg >> execStateT createWorld initWS >>= evalStateT game
+main = setCurrentDirectory mudDir >> welcomeMsg >> 
+       execStateT initialize initWS >>= evalStateT game
 
 
 welcomeMsg :: IO ()
@@ -142,16 +113,17 @@ welcomeMsg = do
     mn <- whatsMyName
     T.putStrLn $ "\nHello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
   where
-    whatsMyName = getProgName >>= \mn -> return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
+    whatsMyName = getProgName >>= \mn ->
+        return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
 
 
 game :: MudStack ()
 game = lift (readline "> ") >>= \ms ->
-    maybe game dispatch $ parseInp (ms^.to fromJust.packed)
+    maybe game dispatch $ splitInp (ms^.to fromJust.packed)
 
 
-parseInp :: T.Text -> Maybe Input
-parseInp = splitUp . T.words
+splitInp :: T.Text -> Maybe Input
+splitInp = splitUp . T.words
   where
     splitUp []     = Nothing
     splitUp [x]    = Just (x, [""])
@@ -167,11 +139,10 @@ dispatch (cn, rest) = maybe (wtf >> next) act $ findAction cn
 
 
 findAction :: CmdName -> Maybe Action
-findAction cn = fmap (action . findCmdForFullName) $ findAbbrev cn' cns
+findAction cn = action . findCmdForFullName <$> findAbbrev (T.toLower cn) cns
   where
-    cn' = T.toLower cn
-    cns = map cmdName cmdList
     findCmdForFullName fn = head . filter ((== fn) . cmdName) $ cmdList
+    cns = map cmdName cmdList
 
 
 -- ==================================================
@@ -181,7 +152,7 @@ findAction cn = fmap (action . findCmdForFullName) $ findAbbrev cn' cns
 dispCmdList :: IO ()
 dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
   where
-    makeTxtForCmd txt c = T.concat [ cmdName c, [tab]^.packed, cmdDesc c, [nl]^.packed, txt ]
+    makeTxtForCmd txt c = T.concat [ cmdName c, "\t", cmdDesc c, "\n", txt ]
 
 
 help :: Action
@@ -192,17 +163,13 @@ help _      = undefined
 
 
 dispHelpTopicByName :: T.Text -> IO ()
-dispHelpTopicByName r = do
-    fns <- getDirectoryContents helpDir
-    let tns = map T.pack (tail . tail . sort . delete "root" $ fns)
-    maybe sorry dispHelp $ findAbbrev r tns
+dispHelpTopicByName r = getDirectoryContents helpDir >>= \fns ->
+    let fns' = tail . tail . sort . delete "root" $ fns
+        tns  = map T.pack fns'
+    in maybe sorry dispHelp $ findAbbrev r tns
   where
     sorry = T.putStrLn "No help is available on that topic/command."
-    dispHelp = dumpFile . (++) helpDir . T.unpack
-
-
-dumpFile :: FilePath -> IO ()
-dumpFile fn = T.putStr =<< T.readFile fn
+    dispHelp = dumpFile . (helpDir ++) . T.unpack
 
 
 data InvType = PlaInv | PlaEq | RmInv deriving Eq
@@ -210,16 +177,17 @@ data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 what :: Action
 what [""]   = output "What abbreviation do you want to look up?"
-what [r]    = lift whatCmd >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
+what [r]    = whatCmd >> whatInv PlaInv r >> whatInv PlaEq r >> whatInv RmInv r
   where
     whatCmd = maybe notFound found $ findAbbrev (T.toLower r) (map cmdName cmdList)
       where
-        notFound = T.putStrLn $ dblQuote r <> " doesn't refer to any commands."
-        found cn = T.putStrLn $ dblQuote r <> " may refer to the " <> dblQuote cn <> " command."
+        notFound = output $ dblQuote r <> " doesn't refer to any commands."
+        found cn = outputCon [ dblQuote r, " may refer to the ", dblQuote cn, " command." ]
 what (r:rs) = what [r] >> lift newLine >> what rs
 what      _ = undefined
 
 
+-- TODO: Continue refactoring from here.
 whatInv :: InvType -> T.Text -> MudStack ()
 whatInv it r = do
     is <- case it of PlaInv -> getPlaInv
@@ -282,7 +250,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 look :: Action
 look [""]   = do
     r <- getPlaRm
-    output $ r^.name <> [nl]^.packed <> r^.desc
+    output $ r^.name <> "\n" <> r^.desc
     getPlaRmInv >>= dispRmInv
 look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
