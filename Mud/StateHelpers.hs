@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
-{-# LANGUAGE MultiWayIf, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Mud.StateHelpers where
 
