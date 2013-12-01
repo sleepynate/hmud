@@ -1,7 +1,42 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mud.StateHelpers where
+module Mud.StateHelpers ( addToInv
+                        , findAvailSlot
+                        , getCloth
+                        , getEnt
+                        , getEntBothGramNos
+                        , getEntBothGramNosInInv
+                        , getEntIds
+                        , getEntNamesInInv
+                        , getEntSingsInInv
+                        , getEntsInInv
+                        , getEntsInInvByName
+                        , getEntToReadyByName
+                        , getEntType
+                        , getEq
+                        , getEqMap
+                        , getInv
+                        , getMob
+                        , getMobHand
+                        , getPlaEq 
+                        , getPlaEqMap
+                        , getPlaInv
+                        , getPlaMobHand
+                        , getPlaRm
+                        , getPlaRmId
+                        , getPlaRmInv
+                        , getPlaRmNextRmId 
+                        , getWpn
+                        , isSlotAvail
+                        , makePlurFromBoth
+                        , moveInv
+                        , procGetEntResCon
+                        , procGetEntResPlaInv
+                        , procGetEntResRm
+                        , remFromInv
+                        , ringHelp
+                        , sortInv ) where
 
 import Mud.Convenience
 import Mud.Ids (deadEnd)

@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mud.PlayerCmds where
+module Mud.PlayerCmds (game) where
 
 import Mud.Convenience
 import Mud.MiscDataTypes
@@ -278,6 +278,29 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
     header
       | i == 0    = output "You have readied the following equipment:"
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " has readied the following equipment:"
+
+
+slotNamesMap :: M.Map Slot SlotName
+slotNamesMap = M.fromList [ (HeadS,      "head")
+                          , (REar1S,     "right ear" ), (REar2S, "right ear")
+                          , (LEar1S,     "left ear"),   (LEar2S, "left ear")
+                          , (Nose1S,     "nose"), (Nose2S, "nose")
+                          , (Neck1S,     "neck"), (Neck2S, "neck"), (Neck3S, "neck")
+                          , (RWrist1S,   "right wrist"), (RWrist2S, "right wrist"), (RWrist3S, "right wrist")
+                          , (LWrist1S,   "left wrist"),  (LWrist2S, "left wrist"),  (LWrist3S, "left wrist")
+                          , (RIndexFS,   "right index finger"), (RMidFS, "right middle finger"), (RRingFS, "right ring finger"), (RPinkyFS, "right pinky finger")
+                          , (LIndexFS,   "left index finger"),  (LMidFS, "left middle finger"),  (LRingFS, "left ring finger"),  (LPinkyFS, "left pinky finger")
+                          , (RHandS,     "right hand")
+                          , (LHandS,     "left hand")
+                          , (BothHandsS, "both hands")
+                          , (UpBodyCS,   "upper body")
+                          , (LowBodyCS,  "lower body")
+                          , (FullBodyCS, "full body")
+                          , (UpBodyAS,   "upper body")
+                          , (LowBodyAS,  "lower body")
+                          , (FullBodyAS, "full body")
+                          , (BackS,      "back")
+                          , (FeetS,      "feet") ]
 
 
 -----

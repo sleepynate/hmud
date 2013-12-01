@@ -1,7 +1,24 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mud.Convenience where
+module Mud.Convenience ( (<>)
+                       , aOrAn
+                       , bracketPad
+                       , bracketQuote
+                       , dblQuote
+                       , deleteAllInList
+                       , dumpAssocList
+                       , dumpFile
+                       , findAbbrev
+                       , makeCountList
+                       , mkOrdinal
+                       , newLine
+                       , output
+                       , outputCon
+                       , parensPad
+                       , parensQuote
+                       , showText
+                       , unquote ) where
 
 import Mud.StateDataTypes
 

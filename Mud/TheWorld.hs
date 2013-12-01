@@ -1,7 +1,9 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mud.TheWorld where
+module Mud.TheWorld ( initialize
+                    , initWS
+                    , mkOkapi ) where
 
 import Mud.Convenience
 import Mud.Ids
@@ -74,13 +76,13 @@ putWpn i e o w = do
     wpnTbl.at i  ?= w
 
 
-putArm :: Id -> Ent -> Obj -> Arm -> MudStack ()
-putArm i e o a = do
-    ensureSafeId i
-    typeTbl.at i ?= ArmType
-    entTbl.at i  ?= e
-    objTbl.at i  ?= o
-    armTbl.at i  ?= a
+--putArm :: Id -> Ent -> Obj -> Arm -> MudStack ()
+--putArm i e o a = do
+--    ensureSafeId i
+--    typeTbl.at i ?= ArmType
+--    entTbl.at i  ?= e
+--    objTbl.at i  ?= o
+--    armTbl.at i  ?= a
 
 
 putMob :: Id -> Ent -> Inv -> EqMap -> Mob -> MudStack ()
