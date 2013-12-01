@@ -8,6 +8,7 @@ import Mud.MiscDataTypes
 import Mud.StateDataTypes
 import Mud.StateHelpers
 import Mud.TheWorld
+import Mud.TopLvlDefs
 
 import Control.Arrow (first)
 import Control.Lens (at, ix, to)
@@ -17,18 +18,17 @@ import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.Functor
-import Data.List (delete, find, nub, sort)
+import Data.List (delete, nub, sort)
 import Data.Maybe (fromJust, isNothing)
-import Data.Text.Strict.Lens (packed, unpacked)
+import Data.Text.Strict.Lens (packed)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Console.Readline (readline)
 import System.Directory (getDirectoryContents, getTemporaryDirectory, removeFile)
-import System.Environment (getEnv, getEnvironment)
+import System.Environment (getEnvironment)
 import System.Exit (exitSuccess)
 import System.IO
-import System.IO.Unsafe (unsafePerformIO)
 import System.Process (readProcess)
 
 
@@ -59,15 +59,6 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
 
 
-mudDir :: FilePath
-mudDir = let home = unsafePerformIO . getEnv $ "HOME"
-         in home ++ "/hmud/Mud/"^.unpacked
-
-
-helpDir :: FilePath
-helpDir = mudDir ++ "help/"
-
-
 game :: MudStack ()
 game = lift (readline "> ") >>= \ms ->
     maybe game dispatch $ splitInp (ms^.to fromJust.packed)
@@ -96,10 +87,16 @@ findAction cn = action . findCmdForFullName <$> findAbbrev (T.toLower cn) cns
     cns = map cmdName cmdList
 
 
+-----
+
+
 dispCmdList :: IO ()
 dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
   where
     makeTxtForCmd txt c = T.concat [ cmdName c, "\t", cmdDesc c, "\n", txt ]
+
+
+-----
 
 
 help :: Action
@@ -117,6 +114,9 @@ dispHelpTopicByName r = getDirectoryContents helpDir >>= \fns ->
   where
     sorry = T.putStrLn "No help is available on that topic/command."
     dispHelp = dumpFile . (helpDir ++) . T.unpack
+
+
+-----
 
 
 what :: Action
@@ -161,6 +161,9 @@ whatInv it r = do
                        in if length matches > 1 then "first " else ""
 
 
+-----
+
+
 go :: T.Text -> Action
 go dir [""] = goDispatcher [dir]
 go dir rs   = goDispatcher (dir : rs)
@@ -187,6 +190,9 @@ dirMap :: M.Map T.Text (Rm -> Id)
 dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u", up), ("d", down)]
 
 
+-----
+
+
 look :: Action
 look [""]   = getPlaRm >>= \r ->
     output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
@@ -209,10 +215,6 @@ mkNameCountBothList is = do
     ebgns <- getEntBothGramNosInInv is
     let cs = makeCountList ebgns
     return (nub . zip3 ens cs $ ebgns)
-
-
-makeCountList :: (Eq a) => [a] -> [Int]
-makeCountList xs = [ length (filter (==x) xs) | x <- xs ]
 
 
 descEnt :: Ent -> MudStack ()
@@ -241,11 +243,17 @@ descEntsInInvForId i = getInv i >>= \is ->
     nameCol = bracketPad 11
 
 
+-----
+
+
 inv :: Action
 inv [""]   = descEntsInInvForId 0
 inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
 inv _      = undefined
+
+
+-----
 
 
 equip :: Action
@@ -272,6 +280,9 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " has readied the following equipment:"
 
 
+-----
+
+
 getAction :: Action
 getAction [""]   = output "What do you want to get?"
 getAction [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ shuffleInv
@@ -281,6 +292,19 @@ getAction [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>
                        moveInv is i 0 >> descGetDrop Get is
 getAction (r:rs) = getAction [r] >> getAction rs
 getAction _      = undefined
+
+
+descGetDrop :: GetOrDrop -> Inv -> MudStack ()
+descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
+  where
+    descGetDropHelper (_, c, (s, _))
+      | c == 1 = outputCon [ "You", verb, aOrAn s, "." ]
+    descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
+    verb = case god of Get  -> " pick up "
+                       Drop -> " drop "
+
+
+-----
 
 
 dropAction :: Action
@@ -294,30 +318,13 @@ dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _      = undefined
 
 
-descGetDrop :: GetOrDrop -> Inv -> MudStack ()
-descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
-  where
-    descGetDropHelper (_, c, (s, _))
-      | c == 1 = outputCon [ "You", verb, aOrAn s, "." ]
-    descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
-    verb = case god of Get  -> " pick up "
-                       Drop -> " drop "
+-----
 
 
 putAction :: Action
 putAction [""] = output "What do you want to put? And where do you want to put it?"
 putAction [_]  = output "Where do you want to put it?"
 putAction rs   = putRemDispatcher Put rs
-
-
-remove :: Action
-remove [""] = output "What do you want to remove? And what do you want to remove it from?"
-remove [_]  = output "What do you want to remove it from?"
-remove rs   = putRemDispatcher Rem rs
-
-
-rmChar :: Char
-rmChar = '-'
 
 
 putRemDispatcher :: PutOrRem -> Action
@@ -361,6 +368,27 @@ putHelper ci (r:rs) = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv
     next = putHelper ci rs
 
 
+descPutRem :: PutOrRem -> Inv -> Ent -> MudStack ()
+descPutRem por is ce = mkNameCountBothList is >>= mapM_ descPutRemHelper
+  where
+    descPutRemHelper (_, c, (s, _))
+      | c == 1 = outputCon [ "You", verb, aOrAn s, prep, ce^.sing, "." ]
+    descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, ce^.sing, "." ]
+    verb = case por of Put -> " put "
+                       Rem -> " remove "
+    prep = case por of Put -> " in the "
+                       Rem -> " from the "
+
+
+-----
+
+
+remove :: Action
+remove [""] = output "What do you want to remove? And what do you want to remove it from?"
+remove [_]  = output "What do you want to remove it from?"
+remove rs   = putRemDispatcher Rem rs
+
+
 remHelper :: Id -> Rest -> MudStack ()
 remHelper _  []     = return ()
 remHelper ci (r:rs) = do
@@ -375,16 +403,7 @@ remHelper ci (r:rs) = do
                        in moveInv is ci 0 >> descPutRem Rem is ce >> next
 
 
-descPutRem :: PutOrRem -> Inv -> Ent -> MudStack ()
-descPutRem por is ce = mkNameCountBothList is >>= mapM_ descPutRemHelper
-  where
-    descPutRemHelper (_, c, (s, _))
-      | c == 1 = outputCon [ "You", verb, aOrAn s, prep, ce^.sing, "." ]
-    descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, ce^.sing, "." ]
-    verb = case por of Put -> " put "
-                       Rem -> " remove "
-    prep = case por of Put -> " in the "
-                       Rem -> " from the "
+-----
 
 
 ready :: Action
@@ -406,22 +425,14 @@ readyDispatcher (Just e,  mrol) = do
               _         -> output $ "You can't ready a " <> e^.sing <> "."
 
 
+moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
+moveReadiedItem i em s = eqTbl.at 0 ?= (em & at s ?~ i) >> remFromInv [i] 0
+
+
 isRingROL :: RightOrLeft -> Bool
 isRingROL rol = case rol of R -> False
                             L -> False
                             _ -> True
-
-
-isSlotAvail :: EqMap -> Slot -> Bool
-isSlotAvail em s = isNothing $ em^.at s
-
-
-findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
-findAvailSlot em = find (isSlotAvail em)
-
-
-moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
-moveReadiedItem i em s = eqTbl.at 0 ?= (em & at s ?~ i) >> remFromInv [i] 0
 
 
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
@@ -505,6 +516,9 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
     sorryFullWrist  = output "You can't wear any more accessories on your wrist."   >> return Nothing
 
 
+-----
+
+
 unready :: Action
 unready [""]   = output "What do you want to unready?"
 unready [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
@@ -523,9 +537,15 @@ descUnready is = mkNameCountBothList is >>= mapM_ descUnreadyHelper
     descUnreadyHelper (_, c, both) = outputCon [ "You unready ", showText c, " ", makePlurFromBoth both, "." ]
 
 
+-----
+
+
 okapi :: Action
 okapi _ = mkOkapi >>= \i ->
     output $ "Made okapi with id " <> showText i <> "."
+
+
+-----
 
 
 buffCheck :: Action
@@ -540,6 +560,9 @@ buffCheck _ = lift buffCheckHelper
         removeFile fn
 
 
+-----
+
+
 dumpEnv :: Action
 dumpEnv [""] = lift $ getEnvironment >>= dumpAssocList
 dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepPair
@@ -547,6 +570,9 @@ dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepPair
     grepPair (k, v) = r `T.isInfixOf` (k^.packed) || r `T.isInfixOf` (v^.packed)
 dumpEnv (r:rs) = dumpEnv [r] >> dumpEnv rs
 dumpEnv _      = undefined
+
+
+-----
 
 
 uptime :: Action

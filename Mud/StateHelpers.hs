@@ -7,13 +7,16 @@ import Mud.Convenience
 import Mud.Ids (deadEnd)
 import Mud.MiscDataTypes
 import Mud.StateDataTypes
+import Mud.TopLvlDefs
 
 import Control.Applicative
 import Control.Lens (_1, at, ix)
 import Control.Lens.Operators ((^.), (^?!), (?=))
 import Control.Monad.Trans.State
 import Data.Char (isDigit)
+import Data.List (find)
 import Data.List (sortBy)
+import Data.Maybe (isNothing)
 import Data.Monoid (mappend)
 import Data.Text.Read (decimal)
 import Data.Text.Strict.Lens (packed, unpacked)
@@ -23,6 +26,11 @@ import qualified Data.Text as T
 
 getEnt :: Id -> MudStack Ent
 getEnt i = gets (^?!entTbl.ix i)
+
+
+getEntType :: Ent -> MudStack Type
+getEntType e = let i = e^.entId
+               in gets (^?!typeTbl.ix i)
 
 
 getEntIds :: [Ent] -> Inv
@@ -56,11 +64,7 @@ makePlurFromBoth (s, "") = s <> "s"
 makePlurFromBoth (_, p)  = p
 
 
-allChar, amountChar, indexChar, slotChar :: Char
-allChar    = '\''
-amountChar = '/'
-indexChar  = '.'
-slotChar   = ':'
+-----
 
 
 getEntsInInvByName :: T.Text -> Inv -> MudStack GetEntResult
@@ -135,6 +139,9 @@ procGetEntResCon cn r res = case res of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
+-----
+
+
 getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)
 getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
@@ -164,11 +171,6 @@ ringHelp = T.concat [ "For rings, specify ", dblQuote slotR, " or ", dblQuote sl
                     , dblQuote "pf", " for pinky finger." ]
 
 
-slotR, slotL :: T.Text
-slotR = (slotChar : "r")^.packed
-slotL = (slotChar : "l")^.packed
-
-
 findEntToReady :: T.Text -> MudStack (Maybe Ent)
 findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName >>= \mes ->
     case mes of Just [e]   -> return (Just e)
@@ -177,17 +179,29 @@ findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= proc
                 _          -> undefined
 
 
-getEntType :: Ent -> MudStack Type
-getEntType e = let i = e^.entId
-               in gets (^?!typeTbl.ix i)
+isSlotAvail :: EqMap -> Slot -> Bool
+isSlotAvail em s = isNothing $ em^.at s
+
+
+findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
+findAvailSlot em = find (isSlotAvail em)
+
+
+-----
 
 
 getCloth :: Id -> MudStack Cloth
 getCloth i = gets (^?!clothTbl.ix i)
 
 
+-----
+
+
 getWpn :: Id -> MudStack Wpn
 getWpn i = gets (^?!wpnTbl.ix i)
+
+
+-----
 
 
 getInv :: Id -> MudStack Inv
@@ -202,12 +216,6 @@ addToInv :: Inv -> Id -> MudStack ()
 addToInv is ti = getInv ti >>= sortInv . (++ is) >>= (invTbl.at ti ?=)
 
 
-sortInv :: Inv -> MudStack Inv
-sortInv is = fmap (map (^._1) . sortBy nameThenSing) $ zip3 is <$> getEntNamesInInv is <*> getEntSingsInInv is
-  where
-    nameThenSing (_, n, s) (_, n', s') = (n `compare` n') `mappend` (s `compare` s')
-
-
 remFromInv :: Inv -> Id -> MudStack ()
 remFromInv is fi = getInv fi >>= \fis ->
     invTbl.at fi ?= (deleteAllInList is fis)
@@ -216,6 +224,15 @@ remFromInv is fi = getInv fi >>= \fis ->
 moveInv :: Inv -> Id -> Id -> MudStack ()
 moveInv [] _  _  = return ()
 moveInv is fi ti = remFromInv is fi >> addToInv is ti
+
+
+sortInv :: Inv -> MudStack Inv
+sortInv is = fmap (map (^._1) . sortBy nameThenSing) $ zip3 is <$> getEntNamesInInv is <*> getEntSingsInInv is
+  where
+    nameThenSing (_, n, s) (_, n', s') = (n `compare` n') `mappend` (s `compare` s')
+
+
+-----
 
 
 getEqMap :: Id -> MudStack EqMap
@@ -234,6 +251,9 @@ getPlaEq :: MudStack Inv
 getPlaEq = getEq 0
 
 
+-----
+
+
 getMob :: Id -> MudStack Mob
 getMob i = gets (^?!mobTbl.ix i)
 
@@ -245,6 +265,8 @@ getMobHand i = (^.hand) <$> getMob i
 getPlaMobHand :: MudStack Hand
 getPlaMobHand = getMobHand 0
 
+
+-----
 
 getPlaRmId :: MudStack Id
 getPlaRmId = gets (^.pla.rmId)

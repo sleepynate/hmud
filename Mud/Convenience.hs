@@ -18,17 +18,17 @@ newLine :: IO ()
 newLine = putChar '\n'
 
 
-infixl 7 <>
-(<>) :: T.Text -> T.Text -> T.Text
-(<>) = T.append
-
-
 output :: T.Text -> MudStack ()
 output = lift . T.putStrLn
 
 
 outputCon :: [T.Text] -> MudStack () -- Prefer over "output" when there would be more than two "<>"s.
 outputCon = output . T.concat
+
+
+infixl 7 <>
+(<>) :: T.Text -> T.Text -> T.Text
+(<>) = T.append
 
 
 showText :: (Show a) => a -> T.Text
@@ -108,3 +108,7 @@ mkOrdinal x  = let t = showText x
                                         '2' -> "nd"
                                         '3' -> "rd"
                                         _   -> "th"
+
+
+makeCountList :: (Eq a) => [a] -> [Int]
+makeCountList xs = [ length (filter (==x) xs) | x <- xs ]

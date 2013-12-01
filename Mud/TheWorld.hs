@@ -26,13 +26,13 @@ findAvailKey :: Inv -> Id
 findAvailKey = head . (\\) [0..]
 
 
-allKeys :: MudStack Inv
-allKeys = gets (^.typeTbl.to IM.keys)
-
-
 ensureSafeId :: Id -> MudStack ()
 ensureSafeId i = allKeys >>= \ks ->
     unless (null ks) $ when (i `elem` ks) (error $ "Attempted to use key " ++ show i ++ " more than once.")
+
+
+allKeys :: MudStack Inv
+allKeys = gets (^.typeTbl.to IM.keys)
 
 
 -----
@@ -144,6 +144,9 @@ createWorld = do
     putCloth iBracelet2 (Ent iBracelet2 "bracelet" "bronze bracelet" "" "It's a simple silver bracelet." 0) (Obj 1 1) WristC
     putCloth iBracelet3 (Ent iBracelet3 "bracelet" "gold bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) WristC
     putCloth iBracelet4 (Ent iBracelet4 "bracelet" "platinum bracelet" "" "It's a simple bracelet." 0) (Obj 1 1) WristC
+
+
+-----
 
 
 initialize :: MudStack ()
