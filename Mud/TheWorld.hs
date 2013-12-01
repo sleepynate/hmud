@@ -4,8 +4,8 @@
 module Mud.TheWorld where
 
 import Mud.Convenience
-import Mud.DataTypes
 import Mud.Ids
+import Mud.StateDataTypes
 import Mud.StateHelpers
 
 import Control.Lens (at, ix, to)

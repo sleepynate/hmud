@@ -4,8 +4,9 @@
 module Mud.StateHelpers where
 
 import Mud.Convenience
-import Mud.DataTypes
 import Mud.Ids (deadEnd)
+import Mud.MiscDataTypes
+import Mud.StateDataTypes
 
 import Control.Applicative
 import Control.Lens (_1, at, ix)
@@ -42,9 +43,6 @@ getEntSingsInInv is = getEntsInInv is >>= \es ->
     return [ e^.sing | e <- es ]
 
 
-type BothGramNos = (Sing, Plur)
-
-
 getEntBothGramNos :: Ent -> BothGramNos
 getEntBothGramNos e = (e^.sing, e^.plur)
 
@@ -57,14 +55,6 @@ makePlurFromBoth :: BothGramNos -> Plur
 makePlurFromBoth (s, "") = s <> "s"
 makePlurFromBoth (_, p)  = p
 
-
-type Amount = Int
-type Index  = Int
-type NameSearchedFor = T.Text
-
-data GetEntResult = Mult NameSearchedFor (Maybe [Ent])
-                  | Indexed Index NameSearchedFor (Either Plur Ent)
-                  | Sorry
 
 allChar, amountChar, indexChar, slotChar :: Char
 allChar    = '\''
@@ -135,9 +125,6 @@ procGetEntResPlaInv r res = case res of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-type ConName = T.Text
-
-
 procGetEntResCon :: ConName -> T.Text -> GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResCon cn r res = case res of
   Sorry                   -> outputCon [ "The ", cn, " doesn't contain ", aOrAn r, "." ]            >> return Nothing
@@ -146,12 +133,6 @@ procGetEntResCon cn r res = case res of
   (Indexed _ n (Left "")) -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "The ", cn, " doesn't contain ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
-
-
-data RightOrLeft = R
-                 | L
-                 | RIF | RMF | RRF | RPF
-                 | LIF | LMF | LRF | LPF
 
 
 getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)

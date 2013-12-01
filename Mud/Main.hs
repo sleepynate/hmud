@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -Werror -fno-warn-missing-signatures #-}
+{-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mud.Main (main) where

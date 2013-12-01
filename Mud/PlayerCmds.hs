@@ -4,7 +4,8 @@
 module Mud.PlayerCmds where
 
 import Mud.Convenience
-import Mud.DataTypes
+import Mud.MiscDataTypes
+import Mud.StateDataTypes
 import Mud.StateHelpers
 import Mud.TheWorld
 
@@ -31,16 +32,6 @@ import System.IO.Unsafe (unsafePerformIO)
 import System.Process (readProcess)
 
 
-type Input   = (CmdName, Rest)
-type CmdName = T.Text
-type Rest    = [T.Text]
-
-type Action = Rest -> MudStack ()
-
-data Cmd = Cmd { cmdName :: CmdName
-               , action  :: Action
-               , cmdDesc :: T.Text }
-
 cmdList :: [Cmd]
 cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "?", action = \_ -> lift dispCmdList, cmdDesc = "Display this command list." }
@@ -66,9 +57,6 @@ cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "env", action = dumpEnv, cmdDesc = "Dump system environment variables." }
           , Cmd { cmdName = "uptime", action = uptime, cmdDesc = "Display system uptime." }
           , Cmd { cmdName = "quit", action = \_ -> lift exitSuccess, cmdDesc = "Quit." } ]
-
-
------
 
 
 mudDir :: FilePath
@@ -108,9 +96,6 @@ findAction cn = action . findCmdForFullName <$> findAbbrev (T.toLower cn) cns
     cns = map cmdName cmdList
 
 
------
-
-
 dispCmdList :: IO ()
 dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
   where
@@ -132,9 +117,6 @@ dispHelpTopicByName r = getDirectoryContents helpDir >>= \fns ->
   where
     sorry = T.putStrLn "No help is available on that topic/command."
     dispHelp = dumpFile . (helpDir ++) . T.unpack
-
-
-data InvType = PlaInv | PlaEq | RmInv deriving Eq
 
 
 what :: Action
@@ -312,9 +294,6 @@ dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _      = undefined
 
 
-data GetOrDrop = Get | Drop
-
-
 descGetDrop :: GetOrDrop -> Inv -> MudStack ()
 descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
   where
@@ -323,9 +302,6 @@ descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
     descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
     verb = case god of Get  -> " pick up "
                        Drop -> " drop "
-
-
-data PutOrRem = Put | Rem
 
 
 putAction :: Action

@@ -3,7 +3,7 @@
 
 module Mud.Convenience where
 
-import Mud.DataTypes
+import Mud.StateDataTypes
 
 import Control.Lens (_1, _2)
 import Control.Lens.Operators ((^.))

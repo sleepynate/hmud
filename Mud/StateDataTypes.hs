@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
-module Mud.DataTypes where
+module Mud.StateDataTypes where
 
 import Control.Lens (Lens', lens, makeLenses)
 import Control.Monad.Trans.State
@@ -233,6 +233,8 @@ data WorldState = WorldState { _entTbl   :: EntTbl
                              , _eqTbl    :: EqTable
                              , _typeTbl  :: TypeTbl
                              , _pla      :: Pla }
+
+-----
 
 type MudStack a = StateT WorldState IO a
 
