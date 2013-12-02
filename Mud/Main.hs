@@ -34,4 +34,4 @@ welcomeMsg = do
     T.putStrLn $ "\nHello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
   where
     whatsMyName = getProgName >>= \mn ->
-        return $ if mn == "<interactive>" then "why u no compile me?" else mn^.packed
+        return $ if mn == "<interactive>" then "Y U NO COMPILE ME?" else mn^.packed
