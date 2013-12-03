@@ -271,7 +271,7 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
     getSlotName s         = fromJust . M.lookup s $ slotNamesMap
     mkEqDescList          = mapM descEqHelper
     descEqHelper (sn, i') = getEnt i' >>= \e ->
-        return (T.concat [ parensPad 15 sn, e^.sing, " ", e^.name.to bracketQuote ])
+        return (T.concat [ parensPad 16 sn, e^.sing, " ", e^.name.to bracketQuote ])
     none
       | i == 0    = output "You don't have anything readied. You're naked!"
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " doesn't have anything readied."
@@ -321,10 +321,12 @@ descGetDrop :: GetOrDrop -> Inv -> MudStack ()
 descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
   where
     descGetDropHelper (_, c, (s, _))
-      | c == 1 = outputCon [ "You", verb, aOrAn s, "." ]
+      | c == 1 = outputCon [ "You", verb, article s, "." ]
     descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
-    verb = case god of Get  -> " pick up "
-                       Drop -> " drop "
+    verb      = case god of Get  -> " pick up "
+                            Drop -> " drop "
+    article s = case god of Get  -> aOrAn s
+                            Drop -> "the " <> s
 
 
 -----

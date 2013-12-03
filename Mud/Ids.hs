@@ -44,3 +44,11 @@ iBracelet2 = 16 :: Int
 iBracelet3 = 17 :: Int
 
 iBracelet4 = 18 :: Int
+
+iRing1 = 19 :: Int
+
+iRing2 = 20 :: Int
+
+iRing3 = 21:: Int
+
+iRing4 = 22 :: Int
