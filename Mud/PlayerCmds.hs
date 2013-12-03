@@ -268,7 +268,7 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
     if null edl then none else header >> forM_ edl output
   where
     mkSlotNameToIdList    = map (first getSlotName)
-    getSlotName s         = fromJust . M.lookup s $ slotNamesMap
+    getSlotName s         = slotNamesMap^.ix s
     mkEqDescList          = mapM descEqHelper
     descEqHelper (sn, i') = getEnt i' >>= \e ->
         return (T.concat [ parensPad 16 sn, e^.sing, " ", e^.name.to bracketQuote ])
@@ -282,12 +282,12 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
 
 slotNamesMap :: M.Map Slot SlotName
 slotNamesMap = M.fromList [ (HeadS,      "head")
-                          , (REar1S,     "right ear" ), (REar2S, "right ear")
-                          , (LEar1S,     "left ear"),   (LEar2S, "left ear")
-                          , (Nose1S,     "nose"), (Nose2S, "nose")
-                          , (Neck1S,     "neck"), (Neck2S, "neck"), (Neck3S, "neck")
-                          , (RWrist1S,   "right wrist"), (RWrist2S, "right wrist"), (RWrist3S, "right wrist")
-                          , (LWrist1S,   "left wrist"),  (LWrist2S, "left wrist"),  (LWrist3S, "left wrist")
+                          , (REar1S,     "right ear"),          (REar2S, "right ear")
+                          , (LEar1S,     "left ear"),           (LEar2S, "left ear")
+                          , (Nose1S,     "nose"),               (Nose2S, "nose")
+                          , (Neck1S,     "neck"),               (Neck2S, "neck"),                (Neck3S, "neck")
+                          , (RWrist1S,   "right wrist"),        (RWrist2S, "right wrist"),       (RWrist3S, "right wrist")
+                          , (LWrist1S,   "left wrist"),         (LWrist2S, "left wrist"),        (LWrist3S, "left wrist")
                           , (RIndexFS,   "right index finger"), (RMidFS, "right middle finger"), (RRingFS, "right ring finger"), (RPinkyFS, "right pinky finger")
                           , (LIndexFS,   "left index finger"),  (LMidFS, "left middle finger"),  (LRingFS, "left ring finger"),  (LPinkyFS, "left pinky finger")
                           , (RHandS,     "right hand")

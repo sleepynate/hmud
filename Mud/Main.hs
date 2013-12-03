@@ -11,6 +11,7 @@ import Mud.TopLvlDefs
 import Control.Lens.Operators ((^.))
 import Control.Monad.Trans.State
 import Data.Text.Strict.Lens (packed)
+import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Directory (setCurrentDirectory)
 import System.Environment (getEnv)
@@ -31,7 +32,7 @@ welcomeMsg :: IO ()
 welcomeMsg = do
     un <- getEnv "USER"
     mn <- whatsMyName
-    T.putStrLn $ "\nHello, " <> un^.packed <> ". Welcome to " <> dblQuote mn <> " ver " <> ver <> ".\n"
+    T.putStrLn . T.concat $ [ "\nHello, ", un^.packed, ". Welcome to ", dblQuote mn, " ver ", ver, ".\n" ]
   where
     whatsMyName = getProgName >>= \mn ->
         return $ if mn == "<interactive>" then "Y U NO COMPILE ME?" else mn^.packed
