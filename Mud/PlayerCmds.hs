@@ -18,7 +18,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.Functor
-import Data.List (delete, nub, sort)
+import Data.List (delete, foldl', nub, nubBy, sort)
 import Data.Maybe (fromJust)
 import Data.Text.Strict.Lens (packed)
 import qualified Data.Map.Strict as M
@@ -91,7 +91,7 @@ findAction cn = action . findCmdForFullName <$> findAbbrev (T.toLower cn) cns
 
 
 dispCmdList :: IO ()
-dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl makeTxtForCmd "" $ cmdList
+dispCmdList = T.putStrLn . T.init . T.unlines . reverse . T.lines . foldl' makeTxtForCmd "" $ cmdList
   where
     makeTxtForCmd txt c = T.concat [ cmdName c, "\t", cmdDesc c, "\n", txt ]
 
@@ -407,9 +407,6 @@ remHelper ci (r:rs) = do
 -----
 
 
--- TODO: Consider looking for opportunities to use "(<$>)" in the functions below.
-
-
 ready :: Action
 ready [""]   = output "What do you want to ready?"
 ready [r]    = getEntToReadyByName r >>= readyDispatcher
@@ -454,22 +451,31 @@ readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
 readyCloth i e em mrol = maybe (getAvailClothSlot i em) (getDesigClothSlot i e em) mrol >>= maybe (return ()) (\s -> moveReadiedItem i em s >> readiedMsg s)
   where
     readiedMsg s = getCloth i >>= \c ->
-        case c of FingerC -> wearRingMsg
-                  WristC  -> wearGenericMsg
+        case c of WristC  -> wearGenericMsg
+                  FingerC -> wearRingMsg
                   _       -> undefined -- TODO
       where
-        wearRingMsg    = outputCon [ "You slide the ", e^.sing, " on your ", showText s, "." ]
         wearGenericMsg = outputCon [ "You wear the ", e^.sing, " on your ", showText s, "." ]
+        wearRingMsg    = outputCon [ "You slide the ", e^.sing, " on your ", showText s, "." ]
 
 
 getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
 getDesigClothSlot i e em rol = getCloth i >>= \c ->
-    case c of FingerC | not . isRingROL $ rol -> sorryNotRingROL
-                      | otherwise             -> maybe (return (Just desigRingSlot)) (getEnt >=> sorry desigRingSlot) $ em^.at desigRingSlot
-              WristC  | isRingROL rol -> sorryNotRing
+    case c of WristC  | isRingROL rol -> sorryNotRing
                       | otherwise     -> maybe sorryFullWrist (return . Just) desigWristSlot
+              FingerC | not . isRingROL $ rol -> sorryNotRingROL
+                      | otherwise             -> maybe (return (Just desigRingSlot)) (getEnt >=> sorry desigRingSlot) $ em^.at desigRingSlot
               _       -> undefined -- TODO
   where
+    sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
+    sorryFullWrist  = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
+      where
+        s = case rol of R -> head rWristSlots
+                        L -> head lWristSlots
+                        _ -> undefined
+    desigWristSlot  = case rol of R -> findAvailSlot em rWristSlots
+                                  L -> findAvailSlot em lWristSlots
+                                  _ -> undefined
     sorryNotRingROL = output ringHelp >> return Nothing
     desigRingSlot   = case rol of RI -> RIndexFS
                                   RM -> RMidFS
@@ -480,26 +486,20 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
                                   LR -> LRingFS
                                   LP -> LPinkyFS
                                   _   -> undefined
-    desigWristSlot  = case rol of R -> findAvailSlot em rWristSlots
-                                  L -> findAvailSlot em lWristSlots
-                                  _ -> undefined
     sorry s e'      = outputCon [ "You're already wearing a ", e'^.sing, " on your ", showText s, "." ] >> return Nothing
-    sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
-    sorryFullWrist  = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
-      where
-        s = case rol of R -> head rWristSlots
-                        L -> head lWristSlots
-                        _ -> undefined
 
 
 getAvailClothSlot :: Id -> EqMap -> MudStack (Maybe Slot)
 getAvailClothSlot i em = do
     h <- getPlaMobHand
     c <- getCloth i
-    case c of FingerC -> getRingSlotForHand h
-              WristC  -> return (getWristSlotForHand h `mplus` (getWristSlotForHand . otherHand $ h))
+    case c of WristC  -> return (getWristSlotForHand h `mplus` (getWristSlotForHand . otherHand $ h))
+              FingerC -> getRingSlotForHand h
               _       -> undefined -- TODO
   where
+    getWristSlotForHand h = case h of RHand -> findAvailSlot em lWristSlots
+                                      LHand -> findAvailSlot em rWristSlots
+                                      _     -> undefined
     getRingSlotForHand h = getPlaMobSex >>= \s ->
         return $ case s of Male   -> case h of RHand -> findAvailSlot em [LRingFS, LIndexFS, RRingFS, RIndexFS, LMidFS, RMidFS, LPinkyFS, RPinkyFS]
                                                LHand -> findAvailSlot em [RRingFS, RIndexFS, LRingFS, LIndexFS, RMidFS, LMidFS, RPinkyFS, LPinkyFS]
@@ -508,9 +508,6 @@ getAvailClothSlot i em = do
                                                LHand -> findAvailSlot em [RRingFS, RIndexFS, LRingFS, LIndexFS, RPinkyFS, LPinkyFS, RMidFS, LMidFS]
                                                _     -> undefined
                            _      -> undefined
-    getWristSlotForHand h = case h of RHand -> findAvailSlot em lWristSlots
-                                      LHand -> findAvailSlot em rWristSlots
-                                      _     -> undefined
 
 
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
@@ -560,16 +557,29 @@ unready _      = undefined
 
 
 descUnready :: Inv -> MudStack ()
-descUnready is = getEnt (head is) >>= getEntType >>= \t ->
-    mkNameCountBothList is >>= mapM_ (descUnreadyHelper . verb $ t)
+descUnready is = mkIdCountBothList is >>= mapM_ descUnreadyHelper
   where
-    descUnreadyHelper v (_, c, (s, _))
-      | c == 1 = outputCon [ "You ", v, "the ", s, "." ]
-    descUnreadyHelper v (_, c, both) = outputCon [ "You ", v, showText c, " ", makePlurFromBoth both, "." ]
-    verb t = 
-        case t of ClothType -> undefined -- TODO
-                  WpnType   -> "stop wielding "
+    descUnreadyHelper (i, c, both@(s, _)) = verb i >>= \v ->
+        outputCon $ if c == 1
+          then [ "You ", v, "the ", s, "." ]
+          else [ "You ", v, showText c, " ", makePlurFromBoth both, "." ]
+    verb i = getEnt i >>= getEntType >>= \t ->
+        case t of ClothType -> getCloth i >>= \c ->
+                                   case c of WristC  -> return unwearGenericVerb
+                                             FingerC -> return "slip off "
+                                             _       -> undefined -- TODO
+                  WpnType   -> return "stop wielding "
                   _         -> undefined -- TODO
+      where
+        unwearGenericVerb = "take off "
+
+
+mkIdCountBothList :: Inv -> MudStack [(Id, Int, BothGramNos)]
+mkIdCountBothList is = getEntBothGramNosInInv is >>= \ebgns ->
+    let cs = makeCountList ebgns
+    in return (nubBy equalCountsAndBoths . zip3 is cs $ ebgns)
+      where
+        equalCountsAndBoths (_, c, b) (_, c', b') = c == c' && b == b'
 
 
 -----
