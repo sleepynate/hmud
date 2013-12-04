@@ -4,7 +4,7 @@
 module Mud.TopLvlDefs where
 
 import Control.Lens.Operators ((^.))
-import Data.Text.Strict.Lens (packed, unpacked)
+import Data.Text.Strict.Lens (unpacked)
 import qualified Data.Text as T
 import System.Environment (getEnv)
 import System.IO.Unsafe (unsafePerformIO)
@@ -29,8 +29,3 @@ amountChar = '/'
 indexChar  = '.'
 slotChar   = ':'
 rmChar = '-'
-
-
-slotR, slotL :: T.Text
-slotR = (slotChar : "r")^.packed
-slotL = (slotChar : "l")^.packed

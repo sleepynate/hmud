@@ -31,8 +31,8 @@ data PutOrRem = Put | Rem
 
 data RightOrLeft = R
                  | L
-                 | RIF | RMF | RRF | RPF
-                 | LIF | LMF | LRF | LPF
+                 | RI | RM | RR | RP
+                 | LI | LM | LR | LP deriving Show
 
 -----
 

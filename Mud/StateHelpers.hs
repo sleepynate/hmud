@@ -183,29 +183,19 @@ getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)
 getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
                                            in if T.length ys == 1 then sorry else findEntToReady xs >>= \me ->
-                                              case (T.toLower . T.tail $ ys) of "r"   -> return (me, Just R)
-                                                                                "l"   -> return (me, Just L)
-                                                                                "rif" -> return (me, Just RIF)
-                                                                                "rmf" -> return (me, Just RMF)
-                                                                                "rrf" -> return (me, Just RRF)
-                                                                                "rpf" -> return (me, Just RPF)
-                                                                                "lif" -> return (me, Just LIF)
-                                                                                "lmf" -> return (me, Just LMF)
-                                                                                "lrf" -> return (me, Just LRF)
-                                                                                "lpf" -> return (me, Just LPF)
-                                                                                _     -> sorry
+                                               maybe sorry (\rol -> return (me, Just rol)) $ rOrLNamesMap^.at (T.toLower . T.tail $ ys) -- TODO HERE
   | otherwise = findEntToReady searchName >>= \me ->
       return (me, Nothing)
   where
-    sorry = outputCon [ "Please specify ", dblQuote slotR, " or ", dblQuote slotL, ".\n", ringHelp ] >> return (Nothing, Nothing)
+    sorry = outputCon [ "Please specify ", dblQuote "r", " or ", dblQuote "l", ".\n", ringHelp ] >> return (Nothing, Nothing)
 
 
 ringHelp :: T.Text
-ringHelp = T.concat [ "For rings, specify ", dblQuote slotR, " or ", dblQuote slotL, " immediately followed by:\n"
-                    , dblQuote "if", " for index finger,\n"
-                    , dblQuote "mf", " for middle finter,\n"
-                    , dblQuote "rf", " for ring finger,\n"
-                    , dblQuote "pf", " for pinky finger." ]
+ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l", " immediately followed by:\n"
+                    , dblQuote "i", " for index finger,\n"
+                    , dblQuote "m", " for middle finter,\n"
+                    , dblQuote "r", " for ring finger,\n"
+                    , dblQuote "p", " for pinky finger." ]
 
 
 findEntToReady :: T.Text -> MudStack (Maybe Ent)
@@ -214,6 +204,10 @@ findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= proc
                 Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
                 Nothing    -> return Nothing
                 _          -> undefined
+
+
+rOrLNamesMap :: M.Map T.Text RightOrLeft
+rOrLNamesMap = foldl (\m v -> M.insert (T.toLower . showText $ v) v m) M.empty [R, L, RI, RM, RR, RP, LI, LM, LR, LP]
 
 
 isSlotAvail :: EqMap -> Slot -> Bool

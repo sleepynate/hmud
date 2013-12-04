@@ -314,7 +314,7 @@ dropAction [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r
   where
     shuffleInv es = let is = getEntIds es
                     in getPlaRmId >>= \i ->
-                       moveInv is 0 i >> descGetDrop Drop is
+                        moveInv is 0 i >> descGetDrop Drop is
 dropAction (r:rs) = dropAction [r] >> dropAction rs
 dropAction _      = undefined
 
@@ -335,9 +335,9 @@ putRemDispatcher por (r:rs) = findCon (last rs) >>= \mes ->
                              then output onlyOneMsg
                              else let e = head es
                                   in getEntType e >>= \t ->
-                                     if t /= ConType
-                                       then output $ "The " <> e^.sing <> " isn't a container."
-                                       else e^.entId.to dispatchToHelper
+                                      if t /= ConType
+                                        then output $ "The " <> e^.sing <> " isn't a container."
+                                        else e^.entId.to dispatchToHelper
   where
     findCon cn
       | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm (T.tail cn)
@@ -357,14 +357,14 @@ putHelper ci (r:rs) = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv
     case mes of Nothing -> next
                 Just es -> let is = getEntIds es
                            in getEnt ci >>= \ce ->
-                              if ci `elem` is
-                                then do
-                                    output $ "You can't put the " <> ce^.sing <> " inside itself."
-                                    let is' = filter (/= ci) is
-                                    if null is'
-                                      then next
-                                      else moveInv is' 0 ci >> descPutRem Put is' ce >> next
-                                else moveInv is 0 ci >> descPutRem Put is ce >> next
+                               if ci `elem` is
+                                 then do
+                                     output $ "You can't put the " <> ce^.sing <> " inside itself."
+                                     let is' = filter (/= ci) is
+                                     if null is'
+                                       then next
+                                       else moveInv is' 0 ci >> descPutRem Put is' ce >> next
+                                 else moveInv is 0 ci >> descPutRem Put is ce >> next
   where
     next = putHelper ci rs
 
@@ -471,14 +471,14 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
               _       -> undefined -- TODO
   where
     sorryNotRingROL = output ringHelp >> return Nothing
-    desigRingSlot   = case rol of RIF -> RIndexFS
-                                  RMF -> RMidFS
-                                  RRF -> RRingFS
-                                  RPF -> RPinkyFS
-                                  LIF -> LIndexFS
-                                  LMF -> LMidFS
-                                  LRF -> LRingFS
-                                  LPF -> LPinkyFS
+    desigRingSlot   = case rol of RI -> RIndexFS
+                                  RM -> RMidFS
+                                  RR -> RRingFS
+                                  RP -> RPinkyFS
+                                  LI -> LIndexFS
+                                  LM -> LMidFS
+                                  LR -> LRingFS
+                                  LP -> LPinkyFS
                                   _   -> undefined
     desigWristSlot  = case rol of R -> findAvailSlot em rWristSlots
                                   L -> findAvailSlot em lWristSlots
