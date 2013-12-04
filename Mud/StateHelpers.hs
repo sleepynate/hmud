@@ -19,10 +19,12 @@ module Mud.StateHelpers ( addToInv
                         , getInv
                         , getMob
                         , getMobHand
+                        , getMobSex
                         , getPlaEq 
                         , getPlaEqMap
                         , getPlaInv
                         , getPlaMobHand
+                        , getPlaMobSex
                         , getPlaRm
                         , getPlaRmId
                         , getPlaRmInv
@@ -291,6 +293,14 @@ getPlaEq = getEq 0
 
 getMob :: Id -> MudStack Mob
 getMob i = gets (^?!mobTbl.ix i)
+
+
+getMobSex :: Id -> MudStack Sex
+getMobSex i = (^.sex) <$> getMob i
+
+
+getPlaMobSex :: MudStack Sex
+getPlaMobSex = getMobSex 0
 
 
 getMobHand :: Id -> MudStack Hand
