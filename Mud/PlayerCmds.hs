@@ -11,15 +11,15 @@ import Mud.TheWorld
 import Mud.TopLvlDefs
 
 import Control.Arrow (first)
-import Control.Lens (at, ix, to)
+import Control.Lens (at, to)
 import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
-import Control.Monad ((>=>), forM_, when, void)
+import Control.Monad ((>=>), forM_, mplus, void, when)
 import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.Functor
 import Data.List (delete, nub, sort)
-import Data.Maybe (fromJust, isJust, isNothing)
+import Data.Maybe (fromJust)
 import Data.Text.Strict.Lens (packed)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
@@ -267,8 +267,7 @@ descEq :: Id -> MudStack ()
 descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl ->
     if null edl then none else header >> forM_ edl output
   where
-    mkSlotNameToIdList    = map (first getSlotName)
-    getSlotName s         = slotNamesMap^.ix s
+    mkSlotNameToIdList    = map (first showText)
     mkEqDescList          = mapM descEqHelper
     descEqHelper (sn, i') = getEnt i' >>= \e ->
         return (T.concat [ parensPad 16 sn, e^.sing, " ", e^.name.to bracketQuote ])
@@ -278,29 +277,6 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
     header
       | i == 0    = output "You have readied the following equipment:"
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " has readied the following equipment:"
-
-
-slotNamesMap :: M.Map Slot SlotName
-slotNamesMap = M.fromList [ (HeadS,      "head")
-                          , (REar1S,     "right ear"),          (REar2S, "right ear")
-                          , (LEar1S,     "left ear"),           (LEar2S, "left ear")
-                          , (Nose1S,     "nose"),               (Nose2S, "nose")
-                          , (Neck1S,     "neck"),               (Neck2S, "neck"),                (Neck3S, "neck")
-                          , (RWrist1S,   "right wrist"),        (RWrist2S, "right wrist"),       (RWrist3S, "right wrist")
-                          , (LWrist1S,   "left wrist"),         (LWrist2S, "left wrist"),        (LWrist3S, "left wrist")
-                          , (RIndexFS,   "right index finger"), (RMidFS, "right middle finger"), (RRingFS, "right ring finger"), (RPinkyFS, "right pinky finger")
-                          , (LIndexFS,   "left index finger"),  (LMidFS, "left middle finger"),  (LRingFS, "left ring finger"),  (LPinkyFS, "left pinky finger")
-                          , (RHandS,     "right hand")
-                          , (LHandS,     "left hand")
-                          , (BothHandsS, "both hands")
-                          , (UpBodyCS,   "upper body")
-                          , (LowBodyCS,  "lower body")
-                          , (FullBodyCS, "full body")
-                          , (UpBodyAS,   "upper body")
-                          , (LowBodyAS,  "lower body")
-                          , (FullBodyAS, "full body")
-                          , (BackS,      "back")
-                          , (FeetS,      "feet") ]
 
 
 -----
@@ -472,7 +448,7 @@ readyWpn i e em mrol
   | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
   where
     readyHelper s w = let wt = w^.wpnSub
-                      in case wt of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", slotNamesMap^.ix s, "." ]
+                      in case wt of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
                                     TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
                                                    then moveReadiedItem i em BothHandsS >> output ("You wield the " <> e^.sing <> " with both hands.")
                                                    else output $ "Both hands are required to weild the " <> e^.sing <> "."
@@ -487,13 +463,13 @@ getDesigWpnSlot e em rol
     desigSlot    = case rol of R -> RHandS
                                L -> LHandS
                                _ -> undefined
-    sorry e'     = outputCon [ "You're already wielding a ", e'^.sing, " with your ", slotNamesMap^.ix desigSlot, "." ] >> return Nothing
+    sorry e'     = outputCon [ "You're already wielding a ", e'^.sing, " with your ", showText desigSlot, "." ] >> return Nothing
 
 
 getAvailWpnSlot :: EqMap -> MudStack (Maybe Slot)
 getAvailWpnSlot em = getPlaMobHand >>= \h ->
     let ms = findAvailSlot em . map getSlotForHand $ [h, otherHand h]
-    in if isJust ms then return ms else sorry
+    in maybe sorry (return . Just) ms
   where
     getSlotForHand h = case h of RHand -> RHandS
                                  LHand -> LHandS
@@ -509,8 +485,8 @@ readyCloth i e em mrol = maybe (getAvailClothSlot i em) (getDesigClothSlot i e e
                   WristC  -> wearGenericMsg
                   _       -> undefined -- TODO
       where
-        wearRingMsg    = outputCon [ "You slide the ", e^.sing, " on your ", slotNamesMap^.ix s, "." ]
-        wearGenericMsg = outputCon [ "You wear the ", e^.sing, " on your ", slotNamesMap^.ix s, "." ]
+        wearRingMsg    = outputCon [ "You slide the ", e^.sing, " on your ", showText s, "." ]
+        wearGenericMsg = outputCon [ "You wear the ", e^.sing, " on your ", showText s, "." ]
 
 
 getDesigClothSlot :: Id -> Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
@@ -518,7 +494,7 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
     case c of FingerC | not . isRingROL $ rol -> sorryNotRingROL
                       | otherwise             -> maybe (return (Just desigRingSlot)) (getEnt >=> sorry desigRingSlot) $ em^.at desigRingSlot
               WristC  | isRingROL rol -> sorryNotRing
-                      | otherwise     -> if isNothing desigWristSlot then sorryFullWrist else return desigWristSlot
+                      | otherwise     -> maybe sorryFullWrist (return . Just) desigWristSlot
               _       -> undefined -- TODO
   where
     sorryNotRingROL = output ringHelp >> return Nothing
@@ -534,9 +510,13 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
     desigWristSlot  = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
                                   L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
                                   _ -> undefined
-    sorry s e'      = outputCon [ "You're already wearing a ", e'^.sing, " on your ", slotNamesMap^.ix s, "." ] >> return Nothing
-    sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
-    sorryFullWrist  = output "You can't wear any more accessories on your wrist."   >> return Nothing
+    sorry s e'     = outputCon [ "You're already wearing a ", e'^.sing, " on your ", showText s, "." ] >> return Nothing
+    sorryNotRing   = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
+    sorryFullWrist = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
+      where
+        s = case rol of R -> RWrist1S
+                        L -> LWrist1S
+                        _ -> undefined
 
 
 getAvailClothSlot :: Id -> EqMap -> MudStack (Maybe Slot)
@@ -545,7 +525,7 @@ getAvailClothSlot i em = do
     c <- getCloth i
     case c of FingerC -> getRingSlotForHand h
               WristC  -> let ms = getWristSlotForHand h
-                         in return (if isJust ms then ms else getWristSlotForHand $ otherHand h)
+                         in return (ms `mplus` (getWristSlotForHand . otherHand $ h))
               _       -> undefined -- TODO
   where
     getRingSlotForHand h = getPlaMobSex >>= \s ->

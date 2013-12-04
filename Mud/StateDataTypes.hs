@@ -170,9 +170,44 @@ data Slot = HeadS
           | LowBodyAS
           | FullBodyAS
           | BackS
-          | FeetS deriving (Eq, Show, Ord)
+          | FeetS deriving (Eq, Ord)
 
-type SlotName = T.Text
+instance Show Slot where
+  show HeadS      = "head"
+  show REar1S     = "right ear"
+  show REar2S     = "right ear"
+  show LEar1S     = "left ear"
+  show LEar2S     = "left ear"
+  show Nose1S     = "nose"
+  show Nose2S     = "nose"
+  show Neck1S     = "neck"
+  show Neck2S     = "neck"
+  show Neck3S     = "neck"
+  show RWrist1S   = "right wrist"
+  show RWrist2S   = "right wrist"
+  show RWrist3S   = "right wrist"
+  show LWrist1S   = "left wrist"
+  show LWrist2S   = "left wrist"
+  show LWrist3S   = "left wrist"
+  show RIndexFS   = "right index finger"
+  show RMidFS     = "right middle finger"
+  show RRingFS    = "right ring finger"
+  show RPinkyFS   = "right pinky finger"
+  show LIndexFS   = "left index finger"
+  show LMidFS     = "left middle finger"
+  show LRingFS    = "left ring finger"
+  show LPinkyFS   = "left pinky finger"
+  show RHandS     = "right hand"
+  show LHandS     = "left hand"
+  show BothHandsS = "both hands"
+  show UpBodyCS   = "upper body"
+  show LowBodyCS  = "lower body"
+  show FullBodyCS = "full body"
+  show UpBodyAS   = "upper body"
+  show LowBodyAS  = "lower body"
+  show FullBodyAS = "full body"
+  show BackS      = "back"
+  show FeetS      = "feet"
 
 -----
 
