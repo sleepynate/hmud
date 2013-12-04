@@ -170,7 +170,7 @@ data Slot = HeadS
           | LowBodyAS
           | FullBodyAS
           | BackS
-          | FeetS deriving (Eq, Ord)
+          | FeetS deriving (Eq, Ord, Enum)
 
 instance Show Slot where
   show HeadS      = "head"

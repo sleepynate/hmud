@@ -437,44 +437,14 @@ isRingROL rol = case rol of R -> False
 
 
 otherHand :: Hand -> Hand
-otherHand RHand  = LHand
-otherHand LHand  = RHand
-otherHand _      = undefined
+otherHand RHand = LHand
+otherHand LHand = RHand
+otherHand _     = undefined
 
 
-readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
-readyWpn i e em mrol
-  | not . isSlotAvail em $ BothHandsS = void . output $ "You're already wielding a two-handed weapon."
-  | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
-  where
-    readyHelper s w = let wt = w^.wpnSub
-                      in case wt of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
-                                    TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
-                                                   then moveReadiedItem i em BothHandsS >> output ("You wield the " <> e^.sing <> " with both hands.")
-                                                   else output $ "Both hands are required to weild the " <> e^.sing <> "."
-
-
-getDesigWpnSlot :: Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
-getDesigWpnSlot e em rol
-  | isRingROL rol = sorryNotRing
-  | otherwise     = maybe (return (Just desigSlot)) (getEnt >=> sorry) $ em^.at desigSlot
-  where
-    sorryNotRing = output ("You can't wield a " <> e^.sing <> " with your finger!") >> return Nothing
-    desigSlot    = case rol of R -> RHandS
-                               L -> LHandS
-                               _ -> undefined
-    sorry e'     = outputCon [ "You're already wielding a ", e'^.sing, " with your ", showText desigSlot, "." ] >> return Nothing
-
-
-getAvailWpnSlot :: EqMap -> MudStack (Maybe Slot)
-getAvailWpnSlot em = getPlaMobHand >>= \h ->
-    let ms = findAvailSlot em . map getSlotForHand $ [h, otherHand h]
-    in maybe sorry (return . Just) ms
-  where
-    getSlotForHand h = case h of RHand -> RHandS
-                                 LHand -> LHandS
-                                 _     -> undefined
-    sorry = output "You're already wielding two weapons." >> return Nothing
+rWrists, lWrists :: [Slot]
+rWrists = [RWrist1S .. RWrist3S]
+lWrists = [LWrist1S .. LWrist3S]
 
 
 readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
@@ -507,15 +477,15 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
                                   LRF -> LRingFS
                                   LPF -> LPinkyFS
                                   _   -> undefined
-    desigWristSlot  = case rol of R -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
-                                  L -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
+    desigWristSlot  = case rol of R -> findAvailSlot em rWrists
+                                  L -> findAvailSlot em lWrists
                                   _ -> undefined
-    sorry s e'     = outputCon [ "You're already wearing a ", e'^.sing, " on your ", showText s, "." ] >> return Nothing
-    sorryNotRing   = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
-    sorryFullWrist = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
+    sorry s e'      = outputCon [ "You're already wearing a ", e'^.sing, " on your ", showText s, "." ] >> return Nothing
+    sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
+    sorryFullWrist  = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
       where
-        s = case rol of R -> RWrist1S
-                        L -> LWrist1S
+        s = case rol of R -> head rWrists
+                        L -> head lWrists
                         _ -> undefined
 
 
@@ -536,9 +506,42 @@ getAvailClothSlot i em = do
                                                LHand -> findAvailSlot em [RRingFS, RIndexFS, LRingFS, LIndexFS, RPinkyFS, LPinkyFS, RMidFS, LMidFS]
                                                _     -> undefined
                            _      -> undefined
-    getWristSlotForHand h = case h of RHand -> findAvailSlot em [LWrist1S, LWrist2S, LWrist3S]
-                                      LHand -> findAvailSlot em [RWrist1S, RWrist2S, RWrist3S]
+    getWristSlotForHand h = case h of RHand -> findAvailSlot em lWrists
+                                      LHand -> findAvailSlot em rWrists
                                       _     -> undefined
+
+
+readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
+readyWpn i e em mrol
+  | not . isSlotAvail em $ BothHandsS = void . output $ "You're already wielding a two-handed weapon."
+  | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
+  where
+    readyHelper s w = case w^.wpnSub of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
+                                        TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
+                                                       then moveReadiedItem i em BothHandsS >> output ("You wield the " <> e^.sing <> " with both hands.")
+                                                       else output $ "Both hands are required to weild the " <> e^.sing <> "."
+
+
+getDesigWpnSlot :: Ent -> EqMap -> RightOrLeft -> MudStack (Maybe Slot)
+getDesigWpnSlot e em rol
+  | isRingROL rol = sorryNotRing
+  | otherwise     = maybe (return (Just desigSlot)) (getEnt >=> sorry) $ em^.at desigSlot
+  where
+    sorryNotRing = output ("You can't wield a " <> e^.sing <> " with your finger!") >> return Nothing
+    sorry e'     = outputCon [ "You're already wielding a ", e'^.sing, " with your ", showText desigSlot, "." ] >> return Nothing
+    desigSlot    = case rol of R -> RHandS
+                               L -> LHandS
+                               _ -> undefined
+
+
+getAvailWpnSlot :: EqMap -> MudStack (Maybe Slot)
+getAvailWpnSlot em = getPlaMobHand >>= \h ->
+    maybe sorry (return . Just) (findAvailSlot em . map getSlotForHand $ [h, otherHand h])
+  where
+    getSlotForHand h = case h of RHand -> RHandS
+                                 LHand -> LHandS
+                                 _     -> undefined
+    sorry = output "You're already wielding two weapons." >> return Nothing
 
 
 -----
@@ -555,11 +558,16 @@ unready _      = undefined
 
 
 descUnready :: Inv -> MudStack ()
-descUnready is = mkNameCountBothList is >>= mapM_ descUnreadyHelper
+descUnready is = getEnt (head is) >>= getEntType >>= \t ->
+    mkNameCountBothList is >>= mapM_ (descUnreadyHelper t)
   where
-    descUnreadyHelper (_, c, (s, _))
-      | c == 1 = output $ "You unready the " <> s <> "." -- TODO: Use a word that's better than "unready" (case-by-case)?
-    descUnreadyHelper (_, c, both) = outputCon [ "You unready ", showText c, " ", makePlurFromBoth both, "." ]
+    descUnreadyHelper t (_, c, (s, _))
+      | c == 1 = outputCon [ "You ", verb t, "the ", s, "." ]
+    descUnreadyHelper t (_, c, both) = outputCon [ "You ", verb t, showText c, " ", makePlurFromBoth both, "." ]
+    verb t = 
+        case t of ClothType -> undefined -- TODO
+                  WpnType   -> "stop wielding "
+                  _         -> undefined -- TODO
 
 
 -----
