@@ -13,7 +13,7 @@ import Mud.TopLvlDefs
 import Control.Arrow (first)
 import Control.Lens (at, to)
 import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
-import Control.Monad ((>=>), forM_, mplus, void, when)
+import Control.Monad ((>=>), forM_, mplus, when)
 import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
@@ -407,6 +407,9 @@ remHelper ci (r:rs) = do
 -----
 
 
+-- TODO: Consider looking for opportunities to use "(<$>)" in the functions below.
+
+
 ready :: Action
 ready [""]   = output "What do you want to ready?"
 ready [r]    = getEntToReadyByName r >>= readyDispatcher
@@ -442,9 +445,9 @@ otherHand LHand = RHand
 otherHand _     = undefined
 
 
-rWrists, lWrists :: [Slot]
-rWrists = [RWrist1S .. RWrist3S]
-lWrists = [LWrist1S .. LWrist3S]
+rWristSlots, lWristSlots :: [Slot]
+rWristSlots = [RWrist1S .. RWrist3S]
+lWristSlots = [LWrist1S .. LWrist3S]
 
 
 readyCloth :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
@@ -477,15 +480,15 @@ getDesigClothSlot i e em rol = getCloth i >>= \c ->
                                   LRF -> LRingFS
                                   LPF -> LPinkyFS
                                   _   -> undefined
-    desigWristSlot  = case rol of R -> findAvailSlot em rWrists
-                                  L -> findAvailSlot em lWrists
+    desigWristSlot  = case rol of R -> findAvailSlot em rWristSlots
+                                  L -> findAvailSlot em lWristSlots
                                   _ -> undefined
     sorry s e'      = outputCon [ "You're already wearing a ", e'^.sing, " on your ", showText s, "." ] >> return Nothing
     sorryNotRing    = output ("You can't wear a " <> e^.sing <> " on your finger!") >> return Nothing
     sorryFullWrist  = output ("You can't wear any more accessories on your " <> showText s <> ".") >> return Nothing
       where
-        s = case rol of R -> head rWrists
-                        L -> head lWrists
+        s = case rol of R -> head rWristSlots
+                        L -> head lWristSlots
                         _ -> undefined
 
 
@@ -494,8 +497,7 @@ getAvailClothSlot i em = do
     h <- getPlaMobHand
     c <- getCloth i
     case c of FingerC -> getRingSlotForHand h
-              WristC  -> let ms = getWristSlotForHand h
-                         in return (ms `mplus` (getWristSlotForHand . otherHand $ h))
+              WristC  -> return (getWristSlotForHand h `mplus` (getWristSlotForHand . otherHand $ h))
               _       -> undefined -- TODO
   where
     getRingSlotForHand h = getPlaMobSex >>= \s ->
@@ -506,14 +508,14 @@ getAvailClothSlot i em = do
                                                LHand -> findAvailSlot em [RRingFS, RIndexFS, LRingFS, LIndexFS, RPinkyFS, LPinkyFS, RMidFS, LMidFS]
                                                _     -> undefined
                            _      -> undefined
-    getWristSlotForHand h = case h of RHand -> findAvailSlot em lWrists
-                                      LHand -> findAvailSlot em rWrists
+    getWristSlotForHand h = case h of RHand -> findAvailSlot em lWristSlots
+                                      LHand -> findAvailSlot em rWristSlots
                                       _     -> undefined
 
 
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
 readyWpn i e em mrol
-  | not . isSlotAvail em $ BothHandsS = void . output $ "You're already wielding a two-handed weapon."
+  | not . isSlotAvail em $ BothHandsS = output "You're already wielding a two-handed weapon."
   | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
   where
     readyHelper s w = case w^.wpnSub of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
@@ -559,11 +561,11 @@ unready _      = undefined
 
 descUnready :: Inv -> MudStack ()
 descUnready is = getEnt (head is) >>= getEntType >>= \t ->
-    mkNameCountBothList is >>= mapM_ (descUnreadyHelper t)
+    mkNameCountBothList is >>= mapM_ (descUnreadyHelper . verb $ t)
   where
-    descUnreadyHelper t (_, c, (s, _))
-      | c == 1 = outputCon [ "You ", verb t, "the ", s, "." ]
-    descUnreadyHelper t (_, c, both) = outputCon [ "You ", verb t, showText c, " ", makePlurFromBoth both, "." ]
+    descUnreadyHelper v (_, c, (s, _))
+      | c == 1 = outputCon [ "You ", v, "the ", s, "." ]
+    descUnreadyHelper v (_, c, both) = outputCon [ "You ", v, showText c, " ", makePlurFromBoth both, "." ]
     verb t = 
         case t of ClothType -> undefined -- TODO
                   WpnType   -> "stop wielding "
