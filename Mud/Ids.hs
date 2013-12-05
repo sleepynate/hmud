@@ -52,3 +52,13 @@ iRing2 = 20 :: Int
 iRing3 = 21:: Int
 
 iRing4 = 22 :: Int
+
+iHole = 23 :: Int
+
+iNeck1 = 24 :: Int
+
+iNeck2 = 25 :: Int
+
+iNeck3 = 26 :: Int
+
+iNeck4 = 27 :: Int

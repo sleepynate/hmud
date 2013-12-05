@@ -120,8 +120,10 @@ createWorld = do
     putMob iPla (Ent iPla "" "" "" "" 0) [iKewpie1, iBag1, iClub] (M.fromList [(RHandS, iSword1), (LHandS, iSword2)]) (Mob Male 10 10 10 10 10 10 0 LHand)
 
     putRm  iHill [iGP1, iLongSword] (Rm "The hill" "You stand atop a tall hill." 0 deadEnd deadEnd iCliff deadEnd deadEnd deadEnd)
-
-    putRm  iCliff [iElephant, iBag2, iBracelet1, iBracelet2, iBracelet3, iBracelet4] (Rm "The cliff" "You have reached the edge of a cliff." 0 deadEnd deadEnd deadEnd iHill deadEnd deadEnd)
+    putRm  iCliff [iElephant, iBag2, iBracelet1, iBracelet2, iBracelet3, iBracelet4] (Rm "The cliff" "You have reached the edge of a cliff. \
+        \There is a sizable hole in the ground." 0 deadEnd deadEnd deadEnd iHill deadEnd iHole)
+    putRm  iHole [iNeck1, iNeck2, iNeck3, iNeck4] (Rm "The hole" "You have climbed into a hole in the ground. There is barely enough room to move around. \
+        \It's damp and smells of soil." 0 deadEnd deadEnd deadEnd deadEnd iCliff deadEnd)
     
     putObj iKewpie1 (Ent iKewpie1 "kewpie" "kewpie doll" "" "The red kewpie doll is disgustingly cute." 0) (Obj 1 1)
     putObj iKewpie2 (Ent iKewpie2 "kewpie" "kewpie doll" "" "The orange kewpie doll is disgustingly cute." 0) (Obj 1 1)
@@ -151,6 +153,11 @@ createWorld = do
     putCloth iRing2 (Ent iRing2 "ring" "silver ring" "" "It's a simple silver ring." 0) (Obj 1 1) FingerC
     putCloth iRing3 (Ent iRing3 "ring" "gold ring" "" "It's a simple gold ring." 0) (Obj 1 1) FingerC
     putCloth iRing4 (Ent iRing4 "ring" "platinum ring" "" "It's a simple platinum ring." 0) (Obj 1 1) FingerC
+
+    putCloth iNeck1 (Ent iNeck1 "necklace" "bronze necklace" "" "It's a simple bronze necklace." 0) (Obj 1 1) NeckC
+    putCloth iNeck2 (Ent iNeck2 "necklace" "silver necklace" "" "It's a simple silver necklace." 0) (Obj 1 1) NeckC
+    putCloth iNeck3 (Ent iNeck3 "necklace" "gold necklace" "" "It's a simple gold necklace." 0) (Obj 1 1) NeckC
+    putCloth iNeck4 (Ent iNeck4 "necklace" "platinum necklace" "" "It's a simple platinum necklace." 0) (Obj 1 1) NeckC
 
 -----
 
