@@ -462,7 +462,10 @@ lWristSlots = [LWrist1S .. LWrist3S]
 
 
 readyCloth :: Int -> Ent -> Cloth -> EqMap -> Maybe RightOrLeft -> MudStack ()
-readyCloth i e c em mrol = maybe (getAvailClothSlot c em) (getDesigClothSlot e c em) mrol >>= maybe (return ()) (\s -> moveReadiedItem i em s >> readiedMsg s)
+readyCloth i e c em mrol = maybe (getAvailClothSlot c em)
+                                 (getDesigClothSlot e c em)
+                                 mrol >>= maybe (return ())
+                                                (\s -> moveReadiedItem i em s >> readiedMsg s)
   where
     readiedMsg s = case c of NeckC   -> wearNeckMsg
                              WristC  -> wearGenericMsg
@@ -479,7 +482,9 @@ getDesigClothSlot e c em rol = case c of NeckC   -> sorryNotForHand
                                          WristC  | isRingROL rol -> sorryNotRing
                                                  | otherwise     -> maybe sorryFullWrist (return . Just) desigWristSlot
                                          FingerC | not . isRingROL $ rol -> sorryNotRingROL
-                                                 | otherwise             -> maybe (return (Just desigRingSlot)) (getEnt >=> sorry desigRingSlot) $ em^.at desigRingSlot
+                                                 | otherwise             -> maybe (return (Just desigRingSlot))
+                                                                                  (getEnt >=> sorry desigRingSlot)
+                                                                                  (em^.at desigRingSlot)
                                          _       -> undefined -- TODO
   where
     sorryNotForHand = output ("You can't wear a " <> e^.sing <> " on your hand!")   >> return Nothing
@@ -511,7 +516,7 @@ getAvailClothSlot c em = getPlaMobHand >>= \h ->
               FingerC -> getRingSlotForHand h >>= procMaybe
               _       -> undefined -- TODO
   where
-    procMaybe = maybe (sorryFullClothSlots c >> return Nothing) (return . Just)
+    procMaybe             = maybe (sorryFullClothSlots c >> return Nothing) (return . Just)
     getWristSlotForHand h = case h of RHand -> findAvailSlot em lWristSlots
                                       LHand -> findAvailSlot em rWristSlots
                                       _     -> undefined
@@ -528,7 +533,10 @@ getAvailClothSlot c em = getPlaMobHand >>= \h ->
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
 readyWpn i e em mrol
   | not . isSlotAvail em $ BothHandsS = output "You're already wielding a two-handed weapon."
-  | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= maybe (return ()) (\s -> getWpn i >>= readyHelper s)
+  | otherwise = maybe (getAvailWpnSlot em)
+                      (getDesigWpnSlot e em)
+                      mrol >>= maybe (return ())
+                                     (\s -> getWpn i >>= readyHelper s)
   where
     readyHelper s w = case w^.wpnSub of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
                                         TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
