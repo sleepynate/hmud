@@ -32,7 +32,9 @@ import System.IO
 import System.Process (readProcess)
 
 
--- TODO: Consider a vs the in the commands you are reworking.
+-- TODO: Consider "a" vs "the" in the commands you are reworking.
+
+-- TODO: Make a command to re-enter the last command. Command history?
 
 
 cmdList :: [Cmd]
@@ -235,7 +237,7 @@ descEntsInInvForId i = getInv i >>= \is ->
     if null is then none else header >> mkNameCountBothList is >>= mapM_ descEntInInv
   where
     none
-      | i == 0 = output "You aren't carrying anything."
+      | i == 0 = dudeYourHandsAreEmpty
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " is empty."
     header
       | i == 0 = output "You are carrying:"
@@ -244,6 +246,10 @@ descEntsInInvForId i = getInv i >>= \is ->
       | c == 1 = output $ nameCol en <> "1 " <> s
     descEntInInv (en, c, both) = outputCon [ nameCol en, showText c, " ", makePlurFromBoth both ]
     nameCol = bracketPad 11
+
+
+dudeYourHandsAreEmpty :: MudStack ()
+dudeYourHandsAreEmpty = output "You aren't carrying anything."
 
 
 -----
@@ -275,11 +281,15 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
     descEqHelper (sn, i') = getEnt i' >>= \e ->
         return (T.concat [ parensPad 16 sn, e^.sing, " ", e^.name.to bracketQuote ])
     none
-      | i == 0    = output "You don't have anything readied. You're naked!"
+      | i == 0    = dudeYoureNaked
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " doesn't have anything readied."
     header
       | i == 0    = output "You have readied the following equipment:"
       | otherwise = getEnt i >>= \e -> output $ "The " <> e^.sing <> " has readied the following equipment:"
+
+
+dudeYoureNaked :: MudStack ()
+dudeYoureNaked = output "You don't have anything readied. You're naked!"
 
 
 -----
@@ -343,12 +353,14 @@ descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
 
 dropAction :: Action
 dropAction [""] = output "What do you want to drop?"
-dropAction (rs) = do
-    is <- getPlaInv
-    gers <- mapM (\r -> getEntsInInvByName r is) rs
-    mesList <- mapM gerToMes gers
-    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
-    mapM_ procGerMisForDrop $ zip gers misList    
+dropAction (rs) = getPlaInv >>= \is ->
+    if null is
+      then dudeYourHandsAreEmpty
+      else do
+          gers <- mapM (\r -> getEntsInInvByName r is) rs
+          mesList <- mapM gerToMes gers
+          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+          mapM_ procGerMisForDrop $ zip gers misList
 
 
 procGerMisForDrop :: (GetEntResult, Maybe Inv) -> MudStack ()
@@ -374,7 +386,8 @@ shuffleInvDrop is = getPlaRmId >>= \i ->
 putAction :: Action
 putAction [""] = output "What do you want to put? And where do you want to put it?"
 putAction [_]  = output "Where do you want to put it?"
-putAction rs   = putRemDispatcher Put rs
+putAction rs   = getPlaInv >>= \is ->
+    if null is then dudeYourHandsAreEmpty else putRemDispatcher Put rs
 
 
 putRemDispatcher :: PutOrRem -> Action
@@ -390,7 +403,7 @@ putRemDispatcher por (r:rs) = findCon (last rs) >>= \mes ->
   where
     findCon cn
       | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm
-      | otherwise           = getPlaInv   >>= getEntsInInvByName cn          >>= procGetEntResPlaInv
+      | otherwise = getPlaInv >>= getEntsInInvByName cn >>= procGetEntResPlaInv
     onlyOneMsg         = case por of Put -> "You can only put things into one container at a time."
                                      Rem -> "You can only remove things from one container at a time."
     dispatchToHelper i = case por of Put -> putHelper i restWithoutCon 
@@ -486,10 +499,10 @@ shuffleInvRem ci cn is = moveInv is ci 0 >> descPutRem Rem is cn
 
 -----
 
-
 ready :: Action
 ready [""]   = output "What do you want to ready?"
-ready [r]    = getEntToReadyByName r >>= readyDispatcher
+ready [r]    = getPlaInv >>= \is ->
+    if null is then dudeYourHandsAreEmpty else getEntToReadyByName r >>= readyDispatcher
 ready (r:rs) = ready [r] >> ready rs
 ready _      = undefined
 
@@ -651,22 +664,24 @@ getAvailWpnSlot em = getPlaMobHand >>= \h ->
 
 unready :: Action
 unready [""] = output "What do you want to unready?"
-unready rs   = do
-    is <- getPlaEq
-    gers <- mapM (\r -> getEntsInInvByName r is) rs
-    mesList <- mapM gerToMes gers
-    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
-    mapM_ procGerMisForUnready $ zip gers misList   
+unready rs   = getPlaEq >>= \is ->
+    if null is
+      then dudeYoureNaked
+      else do
+          gers <- mapM (\r -> getEntsInInvByName r is) rs
+          mesList <- mapM gerToMes gers
+          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+          mapM_ procGerMisForUnready $ zip gers misList
 
 
-procGerMisForUnready :: (GetEntResult, Maybe Inv) -> MudStack () -- TODO: This is quite similar to procFerMisForDrop...
+procGerMisForUnready :: (GetEntResult, Maybe Inv) -> MudStack ()
 procGerMisForUnready (_,                     Just []) = return ()
-procGerMisForUnready (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForUnready (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForUnready (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForUnready (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> " among your readied equipment.")
+procGerMisForUnready (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> " among your readied equipment.")
+procGerMisForUnready (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s among your readied equipment.")
 procGerMisForUnready (Mult _ _ (Just _),     Just is) = shuffleInvUnready is
-procGerMisForUnready (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
-procGerMisForUnready (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
+procGerMisForUnready (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s among your readied equipment.")
+procGerMisForUnready (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, " readied." ]
 procGerMisForUnready (Indexed _ _ (Right _), Just is) = shuffleInvUnready is
 procGerMisForUnready _                                = undefined
 
