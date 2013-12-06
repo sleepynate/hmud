@@ -650,13 +650,29 @@ getAvailWpnSlot em = getPlaMobHand >>= \h ->
 
 
 unready :: Action
-unready [""]   = output "What do you want to unready?"
-unready [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ shuffleInv
-  where
-    shuffleInv es = let is = getEntIds es
-                    in M.filter (`notElem` is) <$> getPlaEqMap >>= (eqTbl.at 0 ?=) >> addToInv is 0 >> descUnready is
-unready (r:rs) = unready [r] >> unready rs
-unready _      = undefined
+unready [""] = output "What do you want to unready?"
+unready rs   = do
+    is <- getPlaEq
+    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    mesList <- mapM gerToMes gers
+    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+    mapM_ procGerMisForUnready $ zip gers misList   
+
+
+procGerMisForUnready :: (GetEntResult, Maybe Inv) -> MudStack () -- TODO: This is quite similar to procFerMisForDrop...
+procGerMisForUnready (_,                     Just []) = return ()
+procGerMisForUnready (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForUnready (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForUnready (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForUnready (Mult _ _ (Just _),     Just is) = shuffleInvUnready is
+procGerMisForUnready (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForUnready (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
+procGerMisForUnready (Indexed _ _ (Right _), Just is) = shuffleInvUnready is
+procGerMisForUnready _                                = undefined
+
+
+shuffleInvUnready :: Inv -> MudStack ()
+shuffleInvUnready is = M.filter (`notElem` is) <$> getPlaEqMap >>= (eqTbl.at 0 ?=) >> addToInv is 0 >> descUnready is
 
 
 descUnready :: Inv -> MudStack ()
