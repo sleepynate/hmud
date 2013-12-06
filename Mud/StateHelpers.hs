@@ -33,7 +33,6 @@ module Mud.StateHelpers ( addToInv
                         , isSlotAvail
                         , makePlurFromBoth
                         , moveInv
-                        , procGetEntResCon
                         , procGetEntResPlaInv
                         , procGetEntResRm
                         , remFromInv
@@ -168,16 +167,6 @@ procGetEntResPlaInv ger = case ger of
   (Mult _ _ (Just es))    -> return (Just es)
   (Indexed _ n (Left "")) -> output ("You don't have any " <> n <> "s.")              >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "You don't have ", showText x, " ", p, "." ] >> return Nothing
-  (Indexed _ _ (Right e)) -> return (Just [e])
-
-
-procGetEntResCon :: ConName -> T.Text -> GetEntResult -> MudStack (Maybe [Ent])
-procGetEntResCon cn r ger = case ger of
-  Sorry _                 -> outputCon [ "The ", cn, " doesn't contain ", aOrAn r, "." ]            >> return Nothing
-  (Mult _ n Nothing)      -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
-  (Mult _ _ (Just es))    -> return (Just es)
-  (Indexed _ n (Left "")) -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
-  (Indexed x _ (Left p))  -> outputCon [ "The ", cn, " doesn't contain ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 

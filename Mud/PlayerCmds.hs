@@ -424,21 +424,21 @@ procGerMisForPut _  _                                = undefined
 
 shuffleInvPut :: Id -> Inv -> MudStack ()
 shuffleInvPut ci is = do
-    ce <- getEnt ci
-    is' <- checkImplosion ce
-    moveInv is' 0 ci >> descPutRem Put is' ce
+    cn <- (^.sing) <$> getEnt ci
+    is' <- checkImplosion cn
+    moveInv is' 0 ci >> descPutRem Put is' cn
   where
-    checkImplosion ce = if ci `elem` is
-                          then output ("You can't put the " <> ce^.sing <> " inside itself.") >> return (filter (/= ci) is)
+    checkImplosion cn = if ci `elem` is
+                          then output ("You can't put the " <> cn <> " inside itself.") >> return (filter (/= ci) is)
                           else return is
 
 
-descPutRem :: PutOrRem -> Inv -> Ent -> MudStack ()
-descPutRem por is ce = mkNameCountBothList is >>= mapM_ descPutRemHelper
+descPutRem :: PutOrRem -> Inv -> ConName -> MudStack ()
+descPutRem por is cn = mkNameCountBothList is >>= mapM_ descPutRemHelper
   where
     descPutRemHelper (_, c, (s, _))
-      | c == 1 = outputCon [ "You", verb, aOrAn s, prep, ce^.sing, "." ]
-    descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, ce^.sing, "." ]
+      | c == 1                    = outputCon [ "You", verb, aOrAn s, prep, cn, "." ]
+    descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, cn, "." ]
     verb = case por of Put -> " put "
                        Rem -> " remove "
     prep = case por of Put -> " in the "
@@ -455,17 +455,33 @@ remove rs   = putRemDispatcher Rem rs
 
 
 remHelper :: Id -> Rest -> MudStack ()
-remHelper _  []     = return ()
-remHelper ci (r:rs) = do
-    ce <- getEnt ci
-    fis <- getInv ci
-    if null fis
-      then output $ "The " <> ce^.sing <> " appears to be empty."
-      else getEntsInInvByName r fis >>= procGetEntResCon (ce^.sing) r >>= maybe next (shuffleInv ce)
-  where
-    next = remHelper ci rs
-    shuffleInv ce es = let is = getEntIds es
-                       in moveInv is ci 0 >> descPutRem Rem is ce >> next
+remHelper _  []   = return ()
+remHelper ci (rs) = do
+    cn <- (^.sing) <$> getEnt ci
+    is <- getInv ci
+    if null is
+      then output $ "The " <> cn <> " appears to be empty."
+      else do
+          gers <- mapM (\r -> getEntsInInvByName r is) rs
+          mesList <- mapM gerToMes gers
+          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+          mapM_ (procGerMisForRem ci cn) $ zip gers misList
+
+
+procGerMisForRem :: Id -> ConName -> (GetEntResult, Maybe Inv) -> MudStack ()
+procGerMisForRem _  _  (_,                     Just []) = return ()
+procGerMisForRem _  cn (Sorry n,               Nothing) = outputCon [ "The ", cn, " doesn't contain ", aOrAn n, "." ]
+procGerMisForRem _  cn (Mult 1 n Nothing,      Nothing) = outputCon [ "The ", cn, " doesn't contain ", aOrAn n, "." ]
+procGerMisForRem _  cn (Mult _ n Nothing,      Nothing) = outputCon [ "The ", cn, " doesn't contain any ", n, "s." ] 
+procGerMisForRem ci cn (Mult _ _ (Just _),     Just is) = shuffleInvRem ci cn is
+procGerMisForRem _  cn (Indexed _ n (Left ""), Nothing) = outputCon [ "The ", cn, " doesn't contain any ", n, "s." ] 
+procGerMisForRem _  cn (Indexed x _ (Left p),  Nothing) = outputCon [ "The ", cn, " doesn't contain ", showText x, " ", p, "." ]
+procGerMisForRem ci cn (Indexed _ _ (Right _), Just is) = shuffleInvRem ci cn is
+procGerMisForRem _  _  _                                = undefined
+
+
+shuffleInvRem :: Id -> ConName -> Inv -> MudStack ()
+shuffleInvRem ci cn is = moveInv is ci 0 >> descPutRem Rem is cn
 
 
 -----
