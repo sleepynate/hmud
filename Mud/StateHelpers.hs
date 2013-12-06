@@ -61,7 +61,7 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 
 
--- TODO: Add cases for "Mult 1".
+-- TODO: Add cases for "Mult 1". "Sorry" should have a "n".
 
 
 getEnt :: Id -> MudStack Ent
@@ -160,9 +160,10 @@ procGetEntResRm ger = case ger of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-procGetEntResPlaInv :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
-procGetEntResPlaInv r ger = case ger of
-  Sorry _                 -> output ("You don't have " <> aOrAn r <> ".")             >> return Nothing
+procGetEntResPlaInv :: GetEntResult -> MudStack (Maybe [Ent])
+procGetEntResPlaInv ger = case ger of
+  Sorry n                 -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing
+  (Mult 1 n Nothing)      -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing
   (Mult _ n Nothing)      -> output ("You don't have any " <> n <> "s.")              >> return Nothing
   (Mult _ _ (Just es))    -> return (Just es)
   (Indexed _ n (Left "")) -> output ("You don't have any " <> n <> "s.")              >> return Nothing
@@ -203,7 +204,7 @@ ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l",
 
 
 findEntToReady :: T.Text -> MudStack (Maybe Ent)
-findEntToReady n = getPlaInv >>= getEntsInInvByName n >>= procGetEntResPlaInv n >>= \mes ->
+findEntToReady n = getPlaInv >>= getEntsInInvByName n >>= procGetEntResPlaInv >>= \mes ->
       case mes of Just [e]   -> return (Just e)
                   Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
                   Nothing    -> return Nothing

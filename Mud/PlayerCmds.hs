@@ -32,6 +32,9 @@ import System.IO
 import System.Process (readProcess)
 
 
+-- TODO: Consider a vs the in the commands you are reworking.
+
+
 cmdList :: [Cmd]
 cmdList = [ Cmd { cmdName = "",  action = const game, cmdDesc = "" }
           , Cmd { cmdName = "?", action = \_ -> lift dispCmdList, cmdDesc = "Display this command list." }
@@ -248,7 +251,7 @@ descEntsInInvForId i = getInv i >>= \is ->
 
 inv :: Action
 inv [""]   = descEntsInInvForId 0
-inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ (mapM_ descEnt)
+inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
 inv _      = undefined
 
@@ -258,7 +261,7 @@ inv _      = undefined
 
 equip :: Action
 equip [""]   = descEq 0
-equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ (mapM_ descEnt)
+equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 equip (r:rs) = equip [r] >> equip rs
 equip _      = undefined
 
@@ -292,14 +295,14 @@ getAction (rs) = do
     mapM_ procGerMisForGet $ zip gers misList
 
 
-gerToMes :: GetEntResult -> MudStack (Maybe [Ent])
+gerToMes :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Move to StateHelpers.
 gerToMes ger = case ger of
   (Mult    _ _ (Just es)) -> return (Just es)
   (Indexed _ _ (Right e)) -> return (Just [e])
   _                       -> return Nothing
 
 
-pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv]
+pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv] -- TODO: Move to StateHelpers.
 pruneDupIds _       []               = []
 pruneDupIds uniques (Nothing : rest) = Nothing : pruneDupIds uniques rest
 pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
@@ -387,7 +390,7 @@ putRemDispatcher por (r:rs) = findCon (last rs) >>= \mes ->
   where
     findCon cn
       | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm
-      | otherwise = getPlaInv >>= getEntsInInvByName cn >>= procGetEntResPlaInv cn
+      | otherwise           = getPlaInv   >>= getEntsInInvByName cn          >>= procGetEntResPlaInv
     onlyOneMsg         = case por of Put -> "You can only put things into one container at a time."
                                      Rem -> "You can only remove things from one container at a time."
     dispatchToHelper i = case por of Put -> putHelper i restWithoutCon 
@@ -398,21 +401,36 @@ putRemDispatcher _ _ = undefined
 
 
 putHelper :: Id -> Rest -> MudStack ()
-putHelper _  []     = return ()
-putHelper ci (r:rs) = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= \mes ->
-    case mes of Nothing -> next
-                Just es -> let is = getEntIds es
-                           in getEnt ci >>= \ce ->
-                               if ci `elem` is
-                                 then do
-                                     output $ "You can't put the " <> ce^.sing <> " inside itself."
-                                     let is' = filter (/= ci) is
-                                     if null is'
-                                       then next
-                                       else moveInv is' 0 ci >> descPutRem Put is' ce >> next
-                                 else moveInv is 0 ci >> descPutRem Put is ce >> next
+putHelper _  []   = return ()
+putHelper ci (rs) = do
+    is <- getPlaInv
+    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    mesList <- mapM gerToMes gers
+    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+    mapM_ (procGerMisForPut ci) $ zip gers misList
+
+
+procGerMisForPut :: Id -> (GetEntResult, Maybe Inv) -> MudStack ()
+procGerMisForPut _  (_,                     Just []) = return ()
+procGerMisForPut _  (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForPut _  (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForPut _  (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForPut ci (Mult _ _ (Just _),     Just is) = shuffleInvPut ci is
+procGerMisForPut _  (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForPut _  (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
+procGerMisForPut ci (Indexed _ _ (Right _), Just is) = shuffleInvPut ci is
+procGerMisForPut _  _                                = undefined
+
+
+shuffleInvPut :: Id -> Inv -> MudStack ()
+shuffleInvPut ci is = do
+    ce <- getEnt ci
+    is' <- checkImplosion ce
+    moveInv is' 0 ci >> descPutRem Put is' ce
   where
-    next = putHelper ci rs
+    checkImplosion ce = if ci `elem` is
+                          then output ("You can't put the " <> ce^.sing <> " inside itself.") >> return (filter (/= ci) is)
+                          else return is
 
 
 descPutRem :: PutOrRem -> Inv -> Ent -> MudStack ()
@@ -617,7 +635,7 @@ getAvailWpnSlot em = getPlaMobHand >>= \h ->
 
 unready :: Action
 unready [""]   = output "What do you want to unready?"
-unready [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
+unready [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ shuffleInv
   where
     shuffleInv es = let is = getEntIds es
                     in M.filter (`notElem` is) <$> getPlaEqMap >>= (eqTbl.at 0 ?=) >> addToInv is 0 >> descUnready is
