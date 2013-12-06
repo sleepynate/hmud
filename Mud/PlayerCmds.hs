@@ -136,17 +136,17 @@ whatInv it r = do
     is <- getLocInv
     ger <- getEntsInInvByName r is
     case ger of
-      (Mult n (Just es)) | n == acp  -> output $ dblQuote acp <> " may refer to everything" <> locName
-                         | otherwise ->
-                           let e   = head es
-                               len = length es
-                           in if len > 1
-                             then let ebgns  = take len [ getEntBothGramNos e' | e' <- es ]
-                                      h      = head ebgns
-                                      target = if all (== h) ebgns then makePlurFromBoth h else e^.name.to bracketQuote <> "s"
-                                  in outputCon [ dblQuote r, " may refer to the ", showText len, " ", target, locName ]
-                             else getEntNamesInInv is >>= \ens ->
-                                 outputCon [ dblQuote r, " may refer to the ", checkFirst e ens, e^.sing, locName ]
+      (Mult _ n (Just es)) | n == acp  -> output $ dblQuote acp <> " may refer to everything" <> locName
+                           | otherwise ->
+                             let e   = head es
+                                 len = length es
+                             in if len > 1
+                               then let ebgns  = take len [ getEntBothGramNos e' | e' <- es ]
+                                        h      = head ebgns
+                                        target = if all (== h) ebgns then makePlurFromBoth h else e^.name.to bracketQuote <> "s"
+                                    in outputCon [ dblQuote r, " may refer to the ", showText len, " ", target, locName ]
+                               else getEntNamesInInv is >>= \ens ->
+                                   outputCon [ dblQuote r, " may refer to the ", checkFirst e ens, e^.sing, locName ]
       (Indexed x _ (Right e)) -> outputCon [ dblQuote r, " may refer to the ", mkOrdinal x, " ", e^.name.to bracketQuote, " ", e^.sing.to parensQuote, locName ]
       _                       -> output $ dblQuote r <> " doesn't refer to anything" <> locName
   where
@@ -196,7 +196,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 look :: Action
 look [""]   = getPlaRm >>= \r ->
     output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
-look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ (mapM_ descEnt)
+look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm >>= traverse_ (mapM_ descEnt)
 look (r:rs) = look [r] >> look rs
 look _      = undefined
 
@@ -283,14 +283,44 @@ descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl 
 
 
 getAction :: Action
-getAction [""]   = output "What do you want to get?"
-getAction [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm r >>= traverse_ shuffleInv
-  where
-    shuffleInv es = let is = getEntIds es
-                    in getPlaRmId >>= \i ->        
-                       moveInv is i 0 >> descGetDrop Get is
-getAction (r:rs) = getAction [r] >> getAction rs
-getAction _      = undefined
+getAction [""] = output "What do you want to get?"
+getAction (rs) = do
+    is <- getPlaRmInv
+    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    mesList <- mapM gerToMes gers
+    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+    mapM_ procGerMisForGet $ zip gers misList
+
+
+gerToMes :: GetEntResult -> MudStack (Maybe [Ent])
+gerToMes ger = case ger of
+  (Mult    _ _ (Just es)) -> return (Just es)
+  (Indexed _ _ (Right e)) -> return (Just [e])
+  _                       -> return Nothing
+
+
+pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv]
+pruneDupIds _       []               = []
+pruneDupIds uniques (Nothing : rest) = Nothing : pruneDupIds uniques rest
+pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
+                                       in Just is' : pruneDupIds (is' ++ uniques) rest
+
+
+procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack ()
+procGerMisForGet (_,                     Just []) = return ()
+procGerMisForGet (Sorry n,               Nothing) = output ("You don't see " <> aOrAn n <> " here.")
+procGerMisForGet (Mult 1 n Nothing,      Nothing) = output ("You don't see " <> aOrAn n <> " here.")
+procGerMisForGet (Mult _ n Nothing,      Nothing) = output ("You don't see any " <> n <> "s here.")
+procGerMisForGet (Mult _ _ (Just _),     Just is) = shuffleInvGet is
+procGerMisForGet (Indexed _ n (Left ""), Nothing) = output ("You don't see any " <> n <> "s here.")
+procGerMisForGet (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't see ", showText x, " ", p, " here." ]
+procGerMisForGet (Indexed _ _ (Right _), Just is) = shuffleInvGet is
+procGerMisForGet _                                = undefined
+
+
+shuffleInvGet :: Inv -> MudStack ()
+shuffleInvGet is = getPlaRmId >>= \i ->
+    moveInv is i 0 >> descGetDrop Get is
 
 
 descGetDrop :: GetOrDrop -> Inv -> MudStack ()
@@ -309,14 +339,30 @@ descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
 
 
 dropAction :: Action
-dropAction [""]   = output "What do you want to drop?"
-dropAction [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv r >>= traverse_ shuffleInv
-  where
-    shuffleInv es = let is = getEntIds es
-                    in getPlaRmId >>= \i ->
-                        moveInv is 0 i >> descGetDrop Drop is
-dropAction (r:rs) = dropAction [r] >> dropAction rs
-dropAction _      = undefined
+dropAction [""] = output "What do you want to drop?"
+dropAction (rs) = do
+    is <- getPlaInv
+    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    mesList <- mapM gerToMes gers
+    let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+    mapM_ procGerMisForDrop $ zip gers misList    
+
+
+procGerMisForDrop :: (GetEntResult, Maybe Inv) -> MudStack ()
+procGerMisForDrop (_,                     Just []) = return ()
+procGerMisForDrop (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForDrop (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
+procGerMisForDrop (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForDrop (Mult _ _ (Just _),     Just is) = shuffleInvDrop is
+procGerMisForDrop (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForDrop (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
+procGerMisForDrop (Indexed _ _ (Right _), Just is) = shuffleInvDrop is
+procGerMisForDrop _                                = undefined
+
+
+shuffleInvDrop :: Inv -> MudStack ()
+shuffleInvDrop is = getPlaRmId >>= \i ->
+    moveInv is 0 i >> descGetDrop Drop is
 
 
 -----
@@ -340,7 +386,7 @@ putRemDispatcher por (r:rs) = findCon (last rs) >>= \mes ->
                                         else e^.entId.to dispatchToHelper
   where
     findCon cn
-      | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm (T.tail cn)
+      | T.head cn == rmChar = getPlaRmInv >>= getEntsInInvByName (T.tail cn) >>= procGetEntResRm
       | otherwise = getPlaInv >>= getEntsInInvByName cn >>= procGetEntResPlaInv cn
     onlyOneMsg         = case por of Put -> "You can only put things into one container at a time."
                                      Rem -> "You can only remove things from one container at a time."

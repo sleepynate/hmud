@@ -18,11 +18,6 @@ import System.Environment (getEnv)
 import System.Environment (getProgName)
 
 
--- TODO: Consider what, if anything, should be done about indexing in commands like this:
--- r 1.sw 3.sw
--- ...when you have 3 swords.
-
-
 main :: IO ()
 main = setCurrentDirectory mudDir >> welcomeMsg >> 
        execStateT initialize initWS >>= evalStateT game

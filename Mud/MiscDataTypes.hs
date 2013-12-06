@@ -44,9 +44,9 @@ type Amount = Int
 type Index  = Int
 type NameSearchedFor = T.Text
 
-data GetEntResult = Mult NameSearchedFor (Maybe [Ent])
-                  | Indexed Index NameSearchedFor (Either Plur Ent)
-                  | Sorry
+data GetEntResult = Mult    Amount NameSearchedFor (Maybe [Ent])
+                  | Indexed Index  NameSearchedFor (Either Plur Ent)
+                  | Sorry          NameSearchedFor
 
 -----
 

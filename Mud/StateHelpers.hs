@@ -61,6 +61,9 @@ import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 
 
+-- TODO: Add cases for "Mult 1".
+
+
 getEnt :: Id -> MudStack Ent
 getEnt i = gets (^?!entTbl.ix i)
 
@@ -105,72 +108,73 @@ makePlurFromBoth (_, p)  = p
 
 
 getEntsInInvByName :: T.Text -> Inv -> MudStack GetEntResult
-getEntsInInvByName searchName is
-  | searchName == [allChar]^.packed = (Mult searchName . Just) <$> getEntsInInv is
-  | T.head searchName == allChar = getMultEnts (maxBound :: Int) (T.tail searchName) is
-  | isDigit (T.head searchName) = let noText = T.takeWhile isDigit searchName
+getEntsInInvByName searchHame is
+  | searchHame == [allChar]^.packed = (Mult (length is) searchHame . Just) <$> getEntsInInv is
+  | T.head searchHame == allChar = getMultEnts (maxBound :: Int) (T.tail searchHame) is
+  | isDigit (T.head searchHame) = let noText = T.takeWhile isDigit searchHame
                                       noInt  = either undefined (^._1) $ decimal noText
-                                      rest   = T.drop (T.length noText) searchName
+                                      rest   = T.drop (T.length noText) searchHame
                                   in parse rest noInt
-  | otherwise = getMultEnts 1 searchName is
+  | otherwise = getMultEnts 1 searchHame is
   where
-    parse rest noInt 
-      | T.length rest < 2 = return Sorry
+    parse rest noInt
+      | T.length rest < 2 = return (Sorry searchHame)
       | otherwise = let delim = T.head rest
                         rest' = T.tail rest
-                    in case () of _ | delim == amountChar -> getMultEnts   noInt rest' is -- TODO: Change to a multiway if.
+                    in case () of _ | delim == amountChar -> getMultEnts   noInt rest' is -- TODO: Change to a multi-way if.
                                     | delim == indexChar  -> getIndexedEnt noInt rest' is
-                                    | otherwise -> return Sorry
+                                    | otherwise           -> return (Sorry searchHame)
 
 
 getMultEnts :: Amount -> T.Text -> Inv -> MudStack GetEntResult
 getMultEnts a n is
-  | a < 1     = return Sorry
+  | a < 1     = return (Sorry n)
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
-    notFound = return (Mult n Nothing)
-    found fullName = (Mult n . Just . takeMatchingEnts fullName) <$> getEntsInInv is
+    notFound = return (Mult a n Nothing)
+    found fullName = (Mult a n . Just . takeMatchingEnts fullName) <$> getEntsInInv is
     takeMatchingEnts fn = take a . filter (\e -> e^.name == fn)
 
 
 getIndexedEnt :: Index -> T.Text -> Inv -> MudStack GetEntResult
 getIndexedEnt x n is
-  | x < 1     = return Sorry
+  | x < 1     = return (Sorry n)
   | otherwise = getEntNamesInInv is >>= maybe notFound found . findAbbrev n
   where
     notFound = return (Indexed x n (Left ""))
     found fullName = filter (\e -> e^.name == fullName) <$> getEntsInInv is >>= \matches ->
         if length matches < x
-          then let both = getEntBothGramNos $ head matches
-               in return (Indexed x n (Left $ makePlurFromBoth both))
+          then let both = getEntBothGramNos . head $ matches
+               in return (Indexed x n (Left . makePlurFromBoth $ both))
           else return (Indexed x n (Right $ matches !! (x - 1)))
 
 
-procGetEntResRm :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
-procGetEntResRm r res = case res of
-  Sorry                   -> output ("You don't see " <> aOrAn r <> " here.")             >> return Nothing
-  (Mult n Nothing)        -> output ("You don't see any " <> n <> "s here.")              >> return Nothing
-  (Mult _ (Just es))      -> return (Just es)
+procGetEntResRm :: GetEntResult -> MudStack (Maybe [Ent])
+procGetEntResRm ger = case ger of
+  Sorry n                 -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
+  (Mult 1 n Nothing)      -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
+  (Mult _ n Nothing)      -> output ("You don't see any " <> n <> "s here.")              >> return Nothing
+  (Mult _ _ (Just es))    -> return (Just es)
   (Indexed _ n (Left "")) -> output ("You don't see any " <> n <> "s here.")              >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "You don't see ", showText x, " ", p, " here." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
 procGetEntResPlaInv :: T.Text -> GetEntResult -> MudStack (Maybe [Ent])
-procGetEntResPlaInv r res = case res of
-  Sorry                   -> output ("You don't have " <> aOrAn r <> ".")             >> return Nothing
-  (Mult n Nothing)        -> output ("You don't have any " <> n <> "s.")              >> return Nothing
-  (Mult _ (Just es))      -> return (Just es)
+procGetEntResPlaInv r ger = case ger of
+  Sorry _                 -> output ("You don't have " <> aOrAn r <> ".")             >> return Nothing
+  (Mult _ n Nothing)      -> output ("You don't have any " <> n <> "s.")              >> return Nothing
+  (Mult _ _ (Just es))    -> return (Just es)
   (Indexed _ n (Left "")) -> output ("You don't have any " <> n <> "s.")              >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "You don't have ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
 procGetEntResCon :: ConName -> T.Text -> GetEntResult -> MudStack (Maybe [Ent])
-procGetEntResCon cn r res = case res of
-  Sorry                   -> outputCon [ "The ", cn, " doesn't contain ", aOrAn r, "." ]            >> return Nothing
-  (Mult n Nothing)        -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
-  (Mult _ (Just es))      -> return (Just es)
+procGetEntResCon cn r ger = case ger of
+  Sorry _                 -> outputCon [ "The ", cn, " doesn't contain ", aOrAn r, "." ]            >> return Nothing
+  (Mult _ n Nothing)      -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
+  (Mult _ _ (Just es))    -> return (Just es)
   (Indexed _ n (Left "")) -> outputCon [ "The ", cn, " doesn't contain any ", n, "s." ]             >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "The ", cn, " doesn't contain ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
@@ -183,7 +187,7 @@ getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)
 getEntToReadyByName searchName
   | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
                                            in if T.length ys == 1 then sorry else findEntToReady xs >>= \me ->
-                                               maybe sorry (\rol -> return (me, Just rol)) $ rOrLNamesMap^.at (T.toLower . T.tail $ ys) -- TODO HERE
+                                               maybe sorry (\rol -> return (me, Just rol)) $ rOrLNamesMap^.at (T.toLower . T.tail $ ys)
   | otherwise = findEntToReady searchName >>= \me ->
       return (me, Nothing)
   where
@@ -199,11 +203,11 @@ ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l",
 
 
 findEntToReady :: T.Text -> MudStack (Maybe Ent)
-findEntToReady searchName = getPlaInv >>= getEntsInInvByName searchName >>= procGetEntResPlaInv searchName >>= \mes ->
-    case mes of Just [e]   -> return (Just e)
-                Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
-                Nothing    -> return Nothing
-                _          -> undefined
+findEntToReady n = getPlaInv >>= getEntsInInvByName n >>= procGetEntResPlaInv n >>= \mes ->
+      case mes of Just [e]   -> return (Just e)
+                  Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
+                  Nothing    -> return Nothing
+                  _          -> undefined
 
 
 rOrLNamesMap :: M.Map T.Text RightOrLeft
