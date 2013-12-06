@@ -148,7 +148,7 @@ getIndexedEnt x n is
           else return (Indexed x n (Right $ matches !! (x - 1)))
 
 
-procGetEntResRm :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted?
+procGetEntResRm :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted? Should it be reworked?
 procGetEntResRm ger = case ger of
   Sorry n                 -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
   (Mult 1 n Nothing)      -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
@@ -159,7 +159,7 @@ procGetEntResRm ger = case ger of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-procGetEntResPlaInv :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted?
+procGetEntResPlaInv :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted? Should it be reworked?
 procGetEntResPlaInv ger = case ger of
   Sorry n                 -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing
   (Mult 1 n Nothing)      -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing

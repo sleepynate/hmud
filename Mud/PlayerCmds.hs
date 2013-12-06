@@ -198,7 +198,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 -----
 
 
-look :: Action
+look :: Action -- TODO: Rework?
 look [""]   = getPlaRm >>= \r ->
     output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
 look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm >>= traverse_ (mapM_ descEnt)
@@ -255,7 +255,7 @@ dudeYourHandsAreEmpty = output "You aren't carrying anything."
 -----
 
 
-inv :: Action
+inv :: Action -- TODO: Rework?
 inv [""]   = descEntsInInvForId 0
 inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
@@ -265,7 +265,7 @@ inv _      = undefined
 -----
 
 
-equip :: Action
+equip :: Action -- TODO: Rework?
 equip [""]   = descEq 0
 equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 equip (r:rs) = equip [r] >> equip rs
@@ -305,21 +305,21 @@ getAction (rs) = do
     mapM_ procGerMisForGet $ zip gers misList
 
 
-gerToMes :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Move to StateHelpers.
+gerToMes :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Move to StateHelpers?
 gerToMes ger = case ger of
   (Mult    _ _ (Just es)) -> return (Just es)
   (Indexed _ _ (Right e)) -> return (Just [e])
   _                       -> return Nothing
 
 
-pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv] -- TODO: Move to StateHelpers.
+pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv] -- TODO: Move to StateHelpers?
 pruneDupIds _       []               = []
 pruneDupIds uniques (Nothing : rest) = Nothing : pruneDupIds uniques rest
 pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
                                        in Just is' : pruneDupIds (is' ++ uniques) rest
 
 
-procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack ()
+procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack () -- TODO: Consider whether or not all these "procGerMisFor..." functions (and "shuffleInv" functions?) can be combined somehow.
 procGerMisForGet (_,                     Just []) = return ()
 procGerMisForGet (Sorry n,               Nothing) = output ("You don't see " <> aOrAn n <> " here.")
 procGerMisForGet (Mult 1 n Nothing,      Nothing) = output ("You don't see " <> aOrAn n <> " here.")
@@ -499,7 +499,7 @@ shuffleInvRem ci cn is = moveInv is ci 0 >> descPutRem Rem is cn
 
 -----
 
-ready :: Action
+ready :: Action -- TODO: Rework "ready".
 ready [""]   = output "What do you want to ready?"
 ready [r]    = getPlaInv >>= \is ->
     if null is then dudeYourHandsAreEmpty else getEntToReadyByName r >>= readyDispatcher
