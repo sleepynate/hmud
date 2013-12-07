@@ -11,16 +11,16 @@ import Mud.TheWorld
 import Mud.TopLvlDefs
 
 import Control.Arrow (first)
-import Control.Lens (at, to)
+import Control.Lens (_1, _2, at, to)
 import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
 import Control.Monad ((>=>), forM_, mplus, when)
 import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
 import Data.Foldable (traverse_)
 import Data.Functor
-import Data.List (delete, foldl', nub, nubBy, sort)
-import Data.Maybe (fromJust)
-import Data.Text.Strict.Lens (packed)
+import Data.List (delete, find, foldl', nub, nubBy, sort)
+import Data.Maybe (fromJust, isNothing)
+import Data.Text.Strict.Lens (packed, unpacked)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -321,11 +321,11 @@ pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
 
 procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack () -- TODO: Consider whether or not all these "procGerMisFor..." functions (and "shuffleInv" functions?) can be combined somehow.
 procGerMisForGet (_,                     Just []) = return ()
-procGerMisForGet (Sorry n,               Nothing) = output ("You don't see " <> aOrAn n <> " here.")
-procGerMisForGet (Mult 1 n Nothing,      Nothing) = output ("You don't see " <> aOrAn n <> " here.")
-procGerMisForGet (Mult _ n Nothing,      Nothing) = output ("You don't see any " <> n <> "s here.")
+procGerMisForGet (Sorry n,               Nothing) = output $ "You don't see " <> aOrAn n <> " here."
+procGerMisForGet (Mult 1 n Nothing,      Nothing) = output $ "You don't see " <> aOrAn n <> " here."
+procGerMisForGet (Mult _ n Nothing,      Nothing) = output $ "You don't see any " <> n <> "s here."
 procGerMisForGet (Mult _ _ (Just _),     Just is) = shuffleInvGet is
-procGerMisForGet (Indexed _ n (Left ""), Nothing) = output ("You don't see any " <> n <> "s here.")
+procGerMisForGet (Indexed _ n (Left ""), Nothing) = output $ "You don't see any " <> n <> "s here."
 procGerMisForGet (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't see ", showText x, " ", p, " here." ]
 procGerMisForGet (Indexed _ _ (Right _), Just is) = shuffleInvGet is
 procGerMisForGet _                                = undefined
@@ -354,22 +354,20 @@ descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
 dropAction :: Action
 dropAction [""] = output "What do you want to drop?"
 dropAction (rs) = getPlaInv >>= \is ->
-    if null is
-      then dudeYourHandsAreEmpty
-      else do
-          gers <- mapM (\r -> getEntsInInvByName r is) rs
-          mesList <- mapM gerToMes gers
-          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
-          mapM_ procGerMisForDrop $ zip gers misList
+    if null is then dudeYourHandsAreEmpty else do
+        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        mesList <- mapM gerToMes gers
+        let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+        mapM_ procGerMisForDrop $ zip gers misList
 
 
 procGerMisForDrop :: (GetEntResult, Maybe Inv) -> MudStack ()
 procGerMisForDrop (_,                     Just []) = return ()
-procGerMisForDrop (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForDrop (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForDrop (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForDrop (Sorry n,               Nothing) = output $ "You don't have " <> aOrAn n <> "."
+procGerMisForDrop (Mult 1 n Nothing,      Nothing) = output $ "You don't have " <> aOrAn n <> "."
+procGerMisForDrop (Mult _ n Nothing,      Nothing) = output $ "You don't have any " <> n <> "s."
 procGerMisForDrop (Mult _ _ (Just _),     Just is) = shuffleInvDrop is
-procGerMisForDrop (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForDrop (Indexed _ n (Left ""), Nothing) = output $ "You don't have any " <> n <> "s."
 procGerMisForDrop (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
 procGerMisForDrop (Indexed _ _ (Right _), Just is) = shuffleInvDrop is
 procGerMisForDrop _                                = undefined
@@ -425,11 +423,11 @@ putHelper ci (rs) = do
 
 procGerMisForPut :: Id -> (GetEntResult, Maybe Inv) -> MudStack ()
 procGerMisForPut _  (_,                     Just []) = return ()
-procGerMisForPut _  (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForPut _  (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> ".")
-procGerMisForPut _  (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForPut _  (Sorry n,               Nothing) = output $ "You don't have " <> aOrAn n <> "."
+procGerMisForPut _  (Mult 1 n Nothing,      Nothing) = output $ "You don't have " <> aOrAn n <> "."
+procGerMisForPut _  (Mult _ n Nothing,      Nothing) = output $ "You don't have any " <> n <> "s."
 procGerMisForPut ci (Mult _ _ (Just _),     Just is) = shuffleInvPut ci is
-procGerMisForPut _  (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s.")
+procGerMisForPut _  (Indexed _ n (Left ""), Nothing) = output $ "You don't have any " <> n <> "s."
 procGerMisForPut _  (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, "." ]
 procGerMisForPut ci (Indexed _ _ (Right _), Just is) = shuffleInvPut ci is
 procGerMisForPut _  _                                = undefined
@@ -472,13 +470,11 @@ remHelper _  []   = return ()
 remHelper ci (rs) = do
     cn <- (^.sing) <$> getEnt ci
     is <- getInv ci
-    if null is
-      then output $ "The " <> cn <> " appears to be empty."
-      else do
-          gers <- mapM (\r -> getEntsInInvByName r is) rs
-          mesList <- mapM gerToMes gers
-          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
-          mapM_ (procGerMisForRem ci cn) $ zip gers misList
+    if null is then output $ "The " <> cn <> " appears to be empty." else do
+        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        mesList <- mapM gerToMes gers
+        let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+        mapM_ (procGerMisForRem ci cn) $ zip gers misList
 
 
 procGerMisForRem :: Id -> ConName -> (GetEntResult, Maybe Inv) -> MudStack ()
@@ -499,24 +495,78 @@ shuffleInvRem ci cn is = moveInv is ci 0 >> descPutRem Rem is cn
 
 -----
 
-ready :: Action -- TODO: Rework "ready".
-ready [""]   = output "What do you want to ready?"
-ready [r]    = getPlaInv >>= \is ->
-    if null is then dudeYourHandsAreEmpty else getEntToReadyByName r >>= readyDispatcher
-ready (r:rs) = ready [r] >> ready rs
-ready _      = undefined
+
+-- TODO: Review your revisions to the ready command to make sure you didn't do anything too stupid.
 
 
-readyDispatcher :: (Maybe Ent, Maybe RightOrLeft) -> MudStack ()
-readyDispatcher (Nothing, _)    = return ()
-readyDispatcher (Just e,  mrol) = do
-    let i = e^.entId
-    em <- getPlaEqMap
-    t <- getEntType e
-    case t of ClothType -> getCloth i >>= \c -> readyCloth i e c em mrol
-              WpnType   -> readyWpn i e em mrol
-              ArmType   -> undefined -- TODO
-              _         -> output $ "You can't ready a " <> e^.sing <> "."
+ready :: Action
+ready [""] = output "What do you want to ready?"
+ready (rs) = getPlaInv >>= \is ->
+    if null is then dudeYourHandsAreEmpty else do
+        res <- mapM (\r -> getEntsToReadyByName r is) rs
+        let gers  = map (^._1) res -- TODO: Use the lens for mapping here? Use elsewhere, too?
+        let mrols = map (^._2) res
+        mesList <- mapM gerToMes gers
+        let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+        mapM_ procGerMisMrolForReady $ zip3 gers misList mrols
+
+
+getEntsToReadyByName :: T.Text -> Inv -> MudStack (GetEntResult, Maybe RightOrLeft)
+getEntsToReadyByName searchName is
+  | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
+                                           in if T.length ys == 1 then sorry else getEntsInInvByName xs is >>= \ger ->
+                                               maybe sorry
+                                                     (\rol -> return (ger, Just rol))
+                                                     (rOrLNamesMap^.at (T.toLower . T.tail $ ys))
+  | otherwise = getEntsInInvByName searchName is >>= \ger -> return (ger, Nothing)
+  where
+    sorry = return (Sorry searchName, Nothing)
+
+
+rOrLNamesMap :: M.Map T.Text RightOrLeft
+rOrLNamesMap = foldl' (\m v -> M.insert (T.toLower . showText $ v) v m) M.empty [R, L, RI, RM, RR, RP, LI, LM, LR, LP]
+
+
+procGerMisMrolForReady :: (GetEntResult, Maybe Inv, Maybe RightOrLeft) -> MudStack ()
+procGerMisMrolForReady (_,                     Just [], _)    = return ()
+procGerMisMrolForReady (Sorry n,               Nothing, _)    = sorryCantReady n
+procGerMisMrolForReady (Mult 1 n Nothing,      Nothing, _)    = output $ "You don't have " <> aOrAn n <> "."
+procGerMisMrolForReady (Mult _ n Nothing,      Nothing, _)    = output $ "You don't have any " <> n <> "s."
+procGerMisMrolForReady (Mult _ _ (Just _),     Just is, mrol) = readyDispatcher mrol is
+procGerMisMrolForReady (Indexed _ n (Left ""), Nothing, _)    = output $ "You don't have any " <> n <> "s."
+procGerMisMrolForReady (Indexed x _ (Left p),  Nothing, _)    = outputCon [ "You don't have ", showText x, " ", p, "." ]
+procGerMisMrolForReady (Indexed _ _ (Right _), Just is, mrol) = readyDispatcher mrol is
+procGerMisMrolForReady _                                      = undefined
+
+
+sorryCantReady :: T.Text -> MudStack ()
+sorryCantReady n
+  | slotChar `elem` n^.unpacked = outputCon [ "Please specify ", dblQuote "r", " or ", dblQuote "l", ".\n", ringHelp ]
+  | otherwise = output $ "You don't have " <> aOrAn n <> "."
+
+
+readyDispatcher :: Maybe RightOrLeft -> Inv -> MudStack ()
+readyDispatcher mrol = mapM_ dispatchByType
+  where
+    dispatchByType i = do
+        e <- getEnt i
+        em <- getPlaEqMap
+        t <- getEntType e
+        case t of ClothType -> getCloth i >>= \c -> readyCloth i e c em mrol
+                  WpnType   -> readyWpn i e em mrol
+                  ArmType   -> undefined -- TODO
+                  _         -> output $ "You can't ready a " <> e^.sing <> "."
+
+
+-- TODO: Should the below functions (thru neckSlots ...) be reordered?
+
+
+isSlotAvail :: EqMap -> Slot -> Bool
+isSlotAvail em s = isNothing $ em^.at s
+
+
+findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
+findAvailSlot em = find (isSlotAvail em)
 
 
 moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
@@ -665,22 +715,20 @@ getAvailWpnSlot em = getPlaMobHand >>= \h ->
 unready :: Action
 unready [""] = output "What do you want to unready?"
 unready rs   = getPlaEq >>= \is ->
-    if null is
-      then dudeYoureNaked
-      else do
-          gers <- mapM (\r -> getEntsInInvByName r is) rs
-          mesList <- mapM gerToMes gers
-          let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
-          mapM_ procGerMisForUnready $ zip gers misList
+    if null is then dudeYoureNaked else do
+        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        mesList <- mapM gerToMes gers
+        let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
+        mapM_ procGerMisForUnready $ zip gers misList
 
 
 procGerMisForUnready :: (GetEntResult, Maybe Inv) -> MudStack ()
 procGerMisForUnready (_,                     Just []) = return ()
-procGerMisForUnready (Sorry n,               Nothing) = output ("You don't have " <> aOrAn n <> " among your readied equipment.")
-procGerMisForUnready (Mult 1 n Nothing,      Nothing) = output ("You don't have " <> aOrAn n <> " among your readied equipment.")
-procGerMisForUnready (Mult _ n Nothing,      Nothing) = output ("You don't have any " <> n <> "s among your readied equipment.")
+procGerMisForUnready (Sorry n,               Nothing) = output $ "You don't have " <> aOrAn n <> " among your readied equipment."
+procGerMisForUnready (Mult 1 n Nothing,      Nothing) = output $ "You don't have " <> aOrAn n <> " among your readied equipment."
+procGerMisForUnready (Mult _ n Nothing,      Nothing) = output $ "You don't have any " <> n <> "s among your readied equipment."
 procGerMisForUnready (Mult _ _ (Just _),     Just is) = shuffleInvUnready is
-procGerMisForUnready (Indexed _ n (Left ""), Nothing) = output ("You don't have any " <> n <> "s among your readied equipment.")
+procGerMisForUnready (Indexed _ n (Left ""), Nothing) = output $ "You don't have any " <> n <> "s among your readied equipment."
 procGerMisForUnready (Indexed x _ (Left p),  Nothing) = outputCon [ "You don't have ", showText x, " ", p, " readied." ]
 procGerMisForUnready (Indexed _ _ (Right _), Just is) = shuffleInvUnready is
 procGerMisForUnready _                                = undefined

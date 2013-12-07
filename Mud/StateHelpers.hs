@@ -2,7 +2,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mud.StateHelpers ( addToInv
-                        , findAvailSlot
                         , getCloth
                         , getEnt
                         , getEntBothGramNos
@@ -12,7 +11,6 @@ module Mud.StateHelpers ( addToInv
                         , getEntSingsInInv
                         , getEntsInInv
                         , getEntsInInvByName
-                        , getEntToReadyByName
                         , getEntType
                         , getEq
                         , getEqMap
@@ -30,7 +28,6 @@ module Mud.StateHelpers ( addToInv
                         , getPlaRmInv
                         , getPlaRmNextRmId 
                         , getWpn
-                        , isSlotAvail
                         , makePlurFromBoth
                         , moveInv
                         , procGetEntResPlaInv
@@ -50,17 +47,12 @@ import Control.Lens (_1, at, ix)
 import Control.Lens.Operators ((^.), (^?!), (?=))
 import Control.Monad.Trans.State
 import Data.Char (isDigit)
-import Data.List (find)
 import Data.List (sortBy)
-import Data.Maybe (isNothing)
 import Data.Monoid (mappend)
 import Data.Text.Read (decimal)
-import Data.Text.Strict.Lens (packed, unpacked)
+import Data.Text.Strict.Lens (packed)
 import qualified Data.Map.Strict as M
 import qualified Data.Text as T
-
-
--- TODO: Add cases for "Mult 1". "Sorry" should have a "n".
 
 
 getEnt :: Id -> MudStack Ent
@@ -173,43 +165,12 @@ procGetEntResPlaInv ger = case ger of
 -----
 
 
-getEntToReadyByName :: T.Text -> MudStack (Maybe Ent, Maybe RightOrLeft)
-getEntToReadyByName searchName
-  | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
-                                           in if T.length ys == 1 then sorry else findEntToReady xs >>= \me ->
-                                               maybe sorry (\rol -> return (me, Just rol)) $ rOrLNamesMap^.at (T.toLower . T.tail $ ys)
-  | otherwise = findEntToReady searchName >>= \me ->
-      return (me, Nothing)
-  where
-    sorry = outputCon [ "Please specify ", dblQuote "r", " or ", dblQuote "l", ".\n", ringHelp ] >> return (Nothing, Nothing)
-
-
-ringHelp :: T.Text
+ringHelp :: T.Text -- TODO: Move to PlayerCmds?
 ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l", " immediately followed by:\n"
                     , dblQuote "i", " for index finger,\n"
                     , dblQuote "m", " for middle finter,\n"
                     , dblQuote "r", " for ring finger,\n"
                     , dblQuote "p", " for pinky finger." ]
-
-
-findEntToReady :: T.Text -> MudStack (Maybe Ent)
-findEntToReady n = getPlaInv >>= getEntsInInvByName n >>= procGetEntResPlaInv >>= \mes ->
-      case mes of Just [e]   -> return (Just e)
-                  Just (e:_) -> return (Just e) -- TODO: Can this be handled a better way?
-                  Nothing    -> return Nothing
-                  _          -> undefined
-
-
-rOrLNamesMap :: M.Map T.Text RightOrLeft
-rOrLNamesMap = foldl (\m v -> M.insert (T.toLower . showText $ v) v m) M.empty [R, L, RI, RM, RR, RP, LI, LM, LR, LP]
-
-
-isSlotAvail :: EqMap -> Slot -> Bool
-isSlotAvail em s = isNothing $ em^.at s
-
-
-findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
-findAvailSlot em = find (isSlotAvail em)
 
 
 -----
