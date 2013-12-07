@@ -11,8 +11,8 @@ import Mud.TheWorld
 import Mud.TopLvlDefs
 
 import Control.Arrow (first)
-import Control.Lens (_1, _2, at, to)
-import Control.Lens.Operators ((&), (^.), (?~), (.=), (?=))
+import Control.Lens (_1, _2, at, dropping, folded, to)
+import Control.Lens.Operators ((&), (^.), (^..), (?~), (.=), (?=))
 import Control.Monad ((>=>), forM_, mplus, when)
 import Control.Monad.Trans.Class (lift)
 import Data.Char (isSpace, toUpper)
@@ -31,8 +31,6 @@ import System.Exit (exitSuccess)
 import System.IO
 import System.Process (readProcess)
 
-
--- TODO: Consider "a" vs "the" in the commands you are reworking.
 
 -- TODO: Make a command to re-enter the last command. Command history?
 
@@ -114,7 +112,7 @@ help _      = undefined
 dispHelpTopicByName :: T.Text -> IO ()
 dispHelpTopicByName r = getDirectoryContents helpDir >>= \fns ->
     let fns' = tail . tail . sort . delete "root" $ fns
-        tns  = map T.pack fns'
+        tns  = fns'^..folded.packed
     in maybe sorry dispHelp $ findAbbrev r tns
   where
     sorry = T.putStrLn "No help is available on that topic/command."
@@ -198,7 +196,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 -----
 
 
-look :: Action -- TODO: Rework?
+look :: Action
 look [""]   = getPlaRm >>= \r ->
     output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
 look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm >>= traverse_ (mapM_ descEnt)
@@ -255,7 +253,7 @@ dudeYourHandsAreEmpty = output "You aren't carrying anything."
 -----
 
 
-inv :: Action -- TODO: Rework?
+inv :: Action
 inv [""]   = descEntsInInvForId 0
 inv [r]    = getPlaInv >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 inv (r:rs) = inv [r] >> inv rs
@@ -265,7 +263,7 @@ inv _      = undefined
 -----
 
 
-equip :: Action -- TODO: Rework?
+equip :: Action
 equip [""]   = descEq 0
 equip [r]    = getPlaEq >>= getEntsInInvByName r >>= procGetEntResPlaInv >>= traverse_ (mapM_ descEnt)
 equip (r:rs) = equip [r] >> equip rs
@@ -305,14 +303,7 @@ getAction (rs) = do
     mapM_ procGerMisForGet $ zip gers misList
 
 
-gerToMes :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Move to StateHelpers?
-gerToMes ger = case ger of
-  (Mult    _ _ (Just es)) -> return (Just es)
-  (Indexed _ _ (Right e)) -> return (Just [e])
-  _                       -> return Nothing
-
-
-pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv] -- TODO: Move to StateHelpers?
+pruneDupIds :: Inv -> [Maybe Inv] -> [Maybe Inv]
 pruneDupIds _       []               = []
 pruneDupIds uniques (Nothing : rest) = Nothing : pruneDupIds uniques rest
 pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
@@ -339,13 +330,11 @@ shuffleInvGet is = getPlaRmId >>= \i ->
 descGetDrop :: GetOrDrop -> Inv -> MudStack ()
 descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
   where
-    descGetDropHelper (_, c, (s, _))
-      | c == 1 = outputCon [ "You", verb, article s, "." ]
+    descGetDropHelper (_, c, _)
+      | c == 1 = outputCon [ "You", verb, " the ", "." ]
     descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
     verb      = case god of Get  -> " pick up "
                             Drop -> " drop "
-    article s = case god of Get  -> aOrAn s
-                            Drop -> "the " <> s
 
 
 -----
@@ -447,8 +436,8 @@ shuffleInvPut ci is = do
 descPutRem :: PutOrRem -> Inv -> ConName -> MudStack ()
 descPutRem por is cn = mkNameCountBothList is >>= mapM_ descPutRemHelper
   where
-    descPutRemHelper (_, c, (s, _))
-      | c == 1                    = outputCon [ "You", verb, aOrAn s, prep, cn, "." ]
+    descPutRemHelper (_, c, _)
+      | c == 1                    = outputCon [ "You", verb, " the ", prep, cn, "." ]
     descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, cn, "." ]
     verb = case por of Put -> " put "
                        Rem -> " remove "
@@ -496,16 +485,13 @@ shuffleInvRem ci cn is = moveInv is ci 0 >> descPutRem Rem is cn
 -----
 
 
--- TODO: Review your revisions to the ready command to make sure you didn't do anything too stupid.
-
-
 ready :: Action
 ready [""] = output "What do you want to ready?"
 ready (rs) = getPlaInv >>= \is ->
     if null is then dudeYourHandsAreEmpty else do
         res <- mapM (\r -> getEntsToReadyByName r is) rs
-        let gers  = map (^._1) res -- TODO: Use the lens for mapping here? Use elsewhere, too?
-        let mrols = map (^._2) res
+        let gers  = res^..folded._1
+        let mrols = res^..folded._2
         mesList <- mapM gerToMes gers
         let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
         mapM_ procGerMisMrolForReady $ zip3 gers misList mrols
@@ -514,17 +500,14 @@ ready (rs) = getPlaInv >>= \is ->
 getEntsToReadyByName :: T.Text -> Inv -> MudStack (GetEntResult, Maybe RightOrLeft)
 getEntsToReadyByName searchName is
   | slotChar `elem` searchName^.unpacked = let (xs, ys) = T.break (== slotChar) searchName
-                                           in if T.length ys == 1 then sorry else getEntsInInvByName xs is >>= \ger ->
-                                               maybe sorry
-                                                     (\rol -> return (ger, Just rol))
-                                                     (rOrLNamesMap^.at (T.toLower . T.tail $ ys))
+                                           in if T.length ys == 1 then sorry else do
+                                               ger <- getEntsInInvByName xs is
+                                               let try = reads (ys^..unpacked.dropping 1 (folded.to toUpper)) :: [(RightOrLeft, String)]
+                                               case try of [(rol, _)] -> return (ger, Just rol)
+                                                           _          -> sorry
   | otherwise = getEntsInInvByName searchName is >>= \ger -> return (ger, Nothing)
   where
     sorry = return (Sorry searchName, Nothing)
-
-
-rOrLNamesMap :: M.Map T.Text RightOrLeft
-rOrLNamesMap = foldl' (\m v -> M.insert (T.toLower . showText $ v) v m) M.empty [R, L, RI, RM, RR, RP, LI, LM, LR, LP]
 
 
 procGerMisMrolForReady :: (GetEntResult, Maybe Inv, Maybe RightOrLeft) -> MudStack ()
@@ -545,6 +528,14 @@ sorryCantReady n
   | otherwise = output $ "You don't have " <> aOrAn n <> "."
 
 
+ringHelp :: T.Text
+ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l", " immediately followed by:\n"
+                    , dblQuote "i", " for index finger,\n"
+                    , dblQuote "m", " for middle finter,\n"
+                    , dblQuote "r", " for ring finger,\n"
+                    , dblQuote "p", " for pinky finger." ]
+
+
 readyDispatcher :: Maybe RightOrLeft -> Inv -> MudStack ()
 readyDispatcher mrol = mapM_ dispatchByType
   where
@@ -558,7 +549,29 @@ readyDispatcher mrol = mapM_ dispatchByType
                   _         -> output $ "You can't ready a " <> e^.sing <> "."
 
 
--- TODO: Should the below functions (thru neckSlots ...) be reordered?
+-- Helpers for the entity type-specific ready functions:
+
+
+moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
+moveReadiedItem i em s = eqTbl.at 0 ?= (em & at s ?~ i) >> remFromInv [i] 0
+
+
+otherHand :: Hand -> Hand
+otherHand RHand = LHand
+otherHand LHand = RHand
+otherHand _     = undefined
+
+
+isRingROL :: RightOrLeft -> Bool
+isRingROL rol = case rol of R -> False
+                            L -> False
+                            _ -> True
+
+
+neckSlots, rWristSlots, lWristSlots :: [Slot]
+neckSlots   = [Neck1S   .. Neck3S]
+rWristSlots = [RWrist1S .. RWrist3S]
+lWristSlots = [LWrist1S .. LWrist3S]
 
 
 isSlotAvail :: EqMap -> Slot -> Bool
@@ -567,10 +580,6 @@ isSlotAvail em s = isNothing $ em^.at s
 
 findAvailSlot :: EqMap -> [Slot] -> Maybe Slot
 findAvailSlot em = find (isSlotAvail em)
-
-
-moveReadiedItem :: Id -> EqMap -> Slot -> MudStack ()
-moveReadiedItem i em s = eqTbl.at 0 ?= (em & at s ?~ i) >> remFromInv [i] 0
 
 
 sorryFullClothSlots :: Cloth -> MudStack ()
@@ -586,22 +595,7 @@ sorryFullClothSlotsOneSide :: Slot -> MudStack ()
 sorryFullClothSlotsOneSide s = output $ "You can't wear any more accessories on your " <> showText s <> "."
 
 
-isRingROL :: RightOrLeft -> Bool
-isRingROL rol = case rol of R -> False
-                            L -> False
-                            _ -> True
-
-
-otherHand :: Hand -> Hand
-otherHand RHand = LHand
-otherHand LHand = RHand
-otherHand _     = undefined
-
-
-neckSlots, rWristSlots, lWristSlots :: [Slot]
-neckSlots   = [Neck1S   .. Neck3S]
-rWristSlots = [RWrist1S .. RWrist3S]
-lWristSlots = [LWrist1S .. LWrist3S]
+-- Ready clothing:
 
 
 readyCloth :: Int -> Ent -> Cloth -> EqMap -> Maybe RightOrLeft -> MudStack ()
@@ -671,6 +665,9 @@ getAvailClothSlot c em = getPlaMobHand >>= \h ->
                                                LHand -> findAvailSlot em [RRingFS, RIndexFS, LRingFS, LIndexFS, RPinkyFS, LPinkyFS, RMidFS, LMidFS]
                                                _     -> undefined
                            _      -> undefined
+
+
+-- Ready weapons:
 
 
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()

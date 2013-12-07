@@ -22,8 +22,8 @@ module Mud.Convenience ( (<>)
 
 import Mud.StateDataTypes
 
-import Control.Lens (_1, _2)
-import Control.Lens.Operators ((^.))
+import Control.Lens (_1, _2, folded, to)
+import Control.Lens.Operators ((^.), (^..))
 import Control.Monad.Trans.Class (lift)
 import Data.List (delete, sort)
 import Data.Text.Strict.Lens (unpacked)
@@ -83,7 +83,7 @@ quoteWithAndPad :: (T.Text, T.Text) -> Int -> T.Text -> T.Text
 quoteWithAndPad q x t = quoteWith q t' <> T.replicate p " "
   where
     t' = T.take (x - l - 1) t
-    l  = sum . map T.length $ [q^._1, q^._2]
+    l  = sum $ [q^._1, q^._2]^..folded.to T.length
     p  = x - (T.length t') - 2
 
 

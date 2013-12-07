@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mud.StateHelpers ( addToInv
+                        , gerToMes
                         , getCloth
                         , getEnt
                         , getEntBothGramNos
@@ -33,7 +34,6 @@ module Mud.StateHelpers ( addToInv
                         , procGetEntResPlaInv
                         , procGetEntResRm
                         , remFromInv
-                        , ringHelp
                         , sortInv ) where
 
 import Mud.Convenience
@@ -140,7 +140,14 @@ getIndexedEnt x n is
           else return (Indexed x n (Right $ matches !! (x - 1)))
 
 
-procGetEntResRm :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted? Should it be reworked?
+gerToMes :: GetEntResult -> MudStack (Maybe [Ent])
+gerToMes ger = case ger of
+  (Mult    _ _ (Just es)) -> return (Just es)
+  (Indexed _ _ (Right e)) -> return (Just [e])
+  _                       -> return Nothing
+
+
+procGetEntResRm :: GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResRm ger = case ger of
   Sorry n                 -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
   (Mult 1 n Nothing)      -> output ("You don't see " <> aOrAn n <> " here.")             >> return Nothing
@@ -151,7 +158,7 @@ procGetEntResRm ger = case ger of
   (Indexed _ _ (Right e)) -> return (Just [e])
 
 
-procGetEntResPlaInv :: GetEntResult -> MudStack (Maybe [Ent]) -- TODO: Can this be deleted? Should it be reworked?
+procGetEntResPlaInv :: GetEntResult -> MudStack (Maybe [Ent])
 procGetEntResPlaInv ger = case ger of
   Sorry n                 -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing
   (Mult 1 n Nothing)      -> output ("You don't have " <> aOrAn n <> ".")             >> return Nothing
@@ -160,17 +167,6 @@ procGetEntResPlaInv ger = case ger of
   (Indexed _ n (Left "")) -> output ("You don't have any " <> n <> "s.")              >> return Nothing
   (Indexed x _ (Left p))  -> outputCon [ "You don't have ", showText x, " ", p, "." ] >> return Nothing
   (Indexed _ _ (Right e)) -> return (Just [e])
-
-
------
-
-
-ringHelp :: T.Text -- TODO: Move to PlayerCmds?
-ringHelp = T.concat [ "For rings, specify ", dblQuote "r", " or ", dblQuote "l", " immediately followed by:\n"
-                    , dblQuote "i", " for index finger,\n"
-                    , dblQuote "m", " for middle finter,\n"
-                    , dblQuote "r", " for ring finger,\n"
-                    , dblQuote "p", " for pinky finger." ]
 
 
 -----
