@@ -310,7 +310,7 @@ pruneDupIds uniques (Just is : rest) = let is' = deleteAllInList uniques is
                                        in Just is' : pruneDupIds (is' ++ uniques) rest
 
 
-procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack () -- TODO: Consider whether or not all these "procGerMisFor..." functions (and "shuffleInv" functions?) can be combined somehow.
+procGerMisForGet :: (GetEntResult, Maybe Inv) -> MudStack ()
 procGerMisForGet (_,                     Just []) = return ()
 procGerMisForGet (Sorry n,               Nothing) = output $ "You don't see " <> aOrAn n <> " here."
 procGerMisForGet (Mult 1 n Nothing,      Nothing) = output $ "You don't see " <> aOrAn n <> " here."
@@ -599,10 +599,8 @@ sorryFullClothSlotsOneSide s = output $ "You can't wear any more accessories on 
 
 
 readyCloth :: Int -> Ent -> Cloth -> EqMap -> Maybe RightOrLeft -> MudStack ()
-readyCloth i e c em mrol = maybe (getAvailClothSlot c em)
-                                 (getDesigClothSlot e c em)
-                                 mrol >>= maybe (return ())
-                                                (\s -> moveReadiedItem i em s >> readiedMsg s)
+readyCloth i e c em mrol = maybe (getAvailClothSlot c em) (getDesigClothSlot e c em) mrol >>= \ms ->
+    maybe (return ()) (\s -> moveReadiedItem i em s >> readiedMsg s) ms
   where
     readiedMsg s = case c of NeckC   -> wearNeckMsg
                              WristC  -> wearGenericMsg
@@ -673,10 +671,8 @@ getAvailClothSlot c em = getPlaMobHand >>= \h ->
 readyWpn :: Id -> Ent -> EqMap -> Maybe RightOrLeft -> MudStack ()
 readyWpn i e em mrol
   | not . isSlotAvail em $ BothHandsS = output "You're already wielding a two-handed weapon."
-  | otherwise = maybe (getAvailWpnSlot em)
-                      (getDesigWpnSlot e em)
-                      mrol >>= maybe (return ())
-                                     (\s -> getWpn i >>= readyHelper s)
+  | otherwise = maybe (getAvailWpnSlot em) (getDesigWpnSlot e em) mrol >>= \ms ->
+                    maybe (return ()) (\s -> getWpn i >>= readyHelper s) ms
   where
     readyHelper s w = case w^.wpnSub of OneHanded -> moveReadiedItem i em s >> outputCon [ "You wield the ", e^.sing, " with your ", showText s, "." ]
                                         TwoHanded -> if all (isSlotAvail em) [RHandS, LHandS]
