@@ -330,9 +330,9 @@ shuffleInvGet is = getPlaRmId >>= \i ->
 descGetDrop :: GetOrDrop -> Inv -> MudStack ()
 descGetDrop god is = mkNameCountBothList is >>= mapM_ descGetDropHelper
   where
-    descGetDropHelper (_, c, _)
-      | c == 1 = outputCon [ "You", verb, " the ", "." ]
-    descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, "." ]
+    descGetDropHelper (_, c, (s, _))
+      | c == 1 = outputCon [ "You", verb, "the ", s, "." ]
+    descGetDropHelper (_, c, both) = outputCon [ "You", verb, showText c, makePlurFromBoth both, "." ]
     verb      = case god of Get  -> " pick up "
                             Drop -> " drop "
 
