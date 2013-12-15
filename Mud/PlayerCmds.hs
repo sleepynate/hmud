@@ -199,7 +199,7 @@ dirMap = M.fromList [("n", north), ("s", south), ("e", east), ("w", west), ("u",
 look :: Action
 look [""]   = getPlaRm >>= \r ->
     output (r^.name <> "\n" <> r^.desc) >> getPlaRmInv >>= dispRmInv
-look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm >>= traverse_ (mapM_ descEnt)
+look [r]    = getPlaRmInv >>= getEntsInInvByName r >>= procGetEntResRm >>= traverse_ (mapM_ descEnt) -- TODO: Put info about "traverse_" in the style guide?
 look (r:rs) = look [r] >> look rs
 look _      = undefined
 

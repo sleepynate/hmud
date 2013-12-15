@@ -139,3 +139,8 @@ head . (\\) [0..]
 
 Derive "Enum" to use ".." in lists of your type.
 neckSlots = [Neck1S .. Neck3S]
+
+Use monoid to sort by multiple criteria:
+sortBy mySort
+  where
+    mySort (x, y) (x', y') = (x `compare` x') `mappend` (y `compare` y')
