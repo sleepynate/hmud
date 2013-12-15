@@ -138,3 +138,4 @@ Don't forget that it's really cool to use infinite lists when you can:
 head . (\\) [0..]
 
 Derive "Enum" to use ".." in lists of your type.
+neckSlots = [Neck1S .. Neck3S]
