@@ -1,0 +1,140 @@
+Haskell style guide
+
+Indent 4 spaces following "do":
+f = do
+    a <- g
+
+Indent 2 spaces following "if":
+if x
+  then y
+  else z
+...but write your entire "if" statement on a single line, if it isn't too long.
+
+Indent 2 spaces following "case ... of" (if you want to break the line to save horizontal space).
+
+Indent "where" 2 spaces, and indent 2 spaces following "where":
+f = x
+  where
+    x = y
+
+Prefer function composition over parens:
+lift . f $ x
+...instead of...
+lift (f x)
+
+Use parens with return:
+return (f x)
+...instead of...
+return $ f x
+...but prefer...
+return x
+...over...
+return (x)
+
+Prefer explicit import lists over importing everything, unless your import list gets too long.
+
+Your modules should only export the functions that other modules use.
+
+The "Main" module need only export "main".
+
+Import "Control.Functor" if you only need to use "(<$>)"; import "Control.Applicative" if you also need to use "(<*>)".
+
+Consider using a list comprehension instead of "map".
+
+Prefer the composition of library functions over rolling your own fold.
+
+Avoid explicit recursion when it is possible (and more readable) to use a fold.
+
+To avoid space leaks, prefer "foldr" and "foldl'" over "foldl". RWH p.113
+
+Consider using a guard to handle an edge case when pattern matching on function parameters:
+x `f` _ | x < 0 = z
+x `f` y         = a
+
+Prefer using guards with "case" over using "if" with "case":
+case x of
+  y | y == 1 -> z
+    | otherwise -> a
+
+Use "(>>)" and "(>>=)"" instead of "do" when your functions can be neatly chained.
+
+Use "(=<<)" instead of "(>>=)" alongside composed functions. RWH p.357
+output . parse =<< (lift . readProcess "/usr/bin/uptime" [] $ "")
+
+When writing monadic code, consider what can be written outside the monad and lifted in.
+
+Don't forget that you have a choice between "mapM" and "forM". RWH p.221
+
+Use "fmap" or "(<$>)" instead of "liftM".
+
+Use "(<$>)" to lift your lenses:
+(^.sex) <$> getMob i
+
+Don't forget that you can compose "fmap"s to lift a function inside multiple "layers":
+λ> (fmap . fmap . fmap) (+1) $ Just (Just (Just 5))
+Just (Just (Just 6))
+
+Use applicative style instead of monadic code when possible.
+
+Bind to a hanging lambda instead of writing a "do" block when in doing so you are able to write just two lines of code:
+m >>= \x ->
+    return (x + 1) -- Indent this line 4 spaces.
+
+Prefer "maybe" over unwrapping a "Maybe" via pattern matching.
+
+Prefer top level definitions of type "Char" over single-character strings or "Text":
+a = 'a'
+...instead of...
+a = "a"
+Just pack your "Char" as necessary.
+
+Prefer the "packed" and "unpacked" lenses over the corresponding "pack" and "unpack" functions, but prefer...
+dumpFile . (helpDir ++) . T.unpack
+...over...
+dumpFile . (helpDir ++) . (^.unpacked)
+
+Use "to" with "(^.)" when you can:
+ms^.to fromJust.packed
+obj^.name.to T.toUpper
+
+Prefer "folded" over using "map" with a lens:
+myStrings^..folded.packed
+[a, b]^..folded.to T.length
+
+Prefer "_1" and "_2" over "fst" and "snd".
+
+Use "(,)" and "(,,)" when appropriate:
+(,) <$> [1, 2] <*> [3, 4]
+
+Don't shy away from composing a function with an infix operator:
+(++) "You entered:\n\n" . map toUpper
+head . (\\) [0..]
+
+Consider manually instantiating "Show" rather than rolling your own function to pretty-print your type.
+
+When defining an infix operator, consider including a fixity definition. RWH p.244, 328
+
+If appropriate, use infix style in your "data" type and value constructors. RWH p.80
+
+Take advantage of record update syntax when you can.
+
+Avoid constraints in "data" type declarations. Apply constraints to the functions that use your type, where necessary.
+
+If appropriate, use "\" to split text across multiple lines. RWH p.315
+
+Prefer "Data.Map" over association lists.
+
+Use "M.empty" instead of "M.fromList []".
+
+Use "M.singleton" when appropriate.
+
+Use "Data.IntMap" instead of "Data.Map" when your keys are of type "Int".
+
+Use "when", "unless", and "void" when appropriate.
+
+Use "null" instead of "(== [])".
+
+Don't forget that it's really cool to use infinite lists when you can:
+head . (\\) [0..]
+
+Derive "Enum" to use ".." in lists of your type.
