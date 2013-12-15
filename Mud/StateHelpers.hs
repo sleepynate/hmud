@@ -273,7 +273,7 @@ getPlaRmInv = getPlaRmId >>= \i ->
 
 
 getPlaRmNextRmId :: (Rm -> Id) -> MudStack (Maybe Id)
-getPlaRmNextRmId dir = getPlaRm >>= tryId . dir
+getPlaRmNextRmId dir = tryId . dir =<< getPlaRm
   where
     tryId nextId | nextId == deadEnd = return Nothing
                  | otherwise = return (Just nextId)

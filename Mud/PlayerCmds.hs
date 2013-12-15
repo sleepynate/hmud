@@ -271,7 +271,7 @@ equip _      = undefined
 
 
 descEq :: Id -> MudStack ()
-descEq i = getEqMap i >>= mkEqDescList . mkSlotNameToIdList . M.toList >>= \edl ->
+descEq i = (mkEqDescList . mkSlotNameToIdList . M.toList =<< getEqMap i) >>= \edl ->
     if null edl then none else header >> forM_ edl output
   where
     mkSlotNameToIdList    = map (first showText)
@@ -785,7 +785,7 @@ buffCheck _ = lift buffCheckHelper
 
 dumpEnv :: Action
 dumpEnv [""] = lift $ getEnvironment >>= dumpAssocList
-dumpEnv [r]  = lift $ getEnvironment >>= dumpAssocList . filter grepPair
+dumpEnv [r]  = lift $ dumpAssocList . filter grepPair =<< getEnvironment
   where
     grepPair (k, v) = r `T.isInfixOf` (k^.packed) || r `T.isInfixOf` (v^.packed)
 dumpEnv (r:rs) = dumpEnv [r] >> dumpEnv rs
@@ -796,7 +796,7 @@ dumpEnv _      = undefined
 
 
 uptime :: Action
-uptime _ = lift (readProcess "/usr/bin/uptime" [] "") >>= output . parse
+uptime _ = output . parse =<< lift (readProcess "/usr/bin/uptime" [] "")
   where
     parse ut = let (a, b) = span (/= ',') ut
                    a' = unwords . tail . words $ a
