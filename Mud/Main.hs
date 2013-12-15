@@ -17,6 +17,10 @@ import System.Directory (setCurrentDirectory)
 import System.Environment (getEnv)
 import System.Environment (getProgName)
 
+{- TODO: Study the guide here:
+https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md#dealing-with-laziness
+...and consider what changes in your code you ought to make.
+-}
 
 main :: IO ()
 main = setCurrentDirectory mudDir >> welcomeMsg >> 

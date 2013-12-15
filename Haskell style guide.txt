@@ -1,5 +1,12 @@
 Haskell style guide
 
+This guide contains general rules regarding purely stylistic issues (such as indentation), along
+with "newbie" hints to remind me of attractive solutions to problems (use monoid to sort by 
+multiple criteria) and attractive ways to refactor my code (use "(=<<)" instead of "(>>=)"
+alongside a "pipe" of composed functions).
+
+--------------------------------------------------
+
 Indent 4 spaces following "do":
 f = do
     a <- g
@@ -39,6 +46,8 @@ The "Main" module need only export "main".
 
 Import "Control.Functor" if you only need to use "(<$>)"; import "Control.Applicative" if you also need to use "(<*>)".
 
+By default, use strict data types and lazy functions.
+
 Consider using a list comprehension instead of "map".
 
 Prefer the composition of library functions over rolling your own fold.
@@ -58,7 +67,7 @@ case x of
 
 Use "(>>)" and "(>>=)"" instead of "do" when your functions can be neatly chained.
 
-Use "(=<<)" instead of "(>>=)" alongside composed functions. RWH p.357
+Use "(=<<)" instead of "(>>=)" alongside a "pipe" of composed functions. RWH p.357
 output . parse =<< (lift . readProcess "/usr/bin/uptime" [] $ "")
 
 When writing monadic code, consider what can be written outside the monad and lifted in.
@@ -88,14 +97,19 @@ a = 'a'
 a = "a"
 Just pack your "Char" as necessary.
 
+Do not surround lens operators with spaces. Do not surround "(.)" with spaces when using it to compose lenses:
+obj^.name.to T.toUpper
+...instead of...
+obj ^. name . to T.toUpper
+
 Prefer the "packed" and "unpacked" lenses over the corresponding "pack" and "unpack" functions, but prefer...
 dumpFile . (helpDir ++) . T.unpack
 ...over...
 dumpFile . (helpDir ++) . (^.unpacked)
 
 Use "to" with "(^.)" when you can:
-ms^.to fromJust.packed
 obj^.name.to T.toUpper
+ms^.to fromJust.packed
 
 Prefer "folded" over using "map" with a lens:
 myStrings^..folded.packed
