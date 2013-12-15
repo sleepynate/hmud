@@ -796,7 +796,7 @@ dumpEnv _      = undefined
 
 
 uptime :: Action
-uptime _ = output . parse =<< lift (readProcess "/usr/bin/uptime" [] "")
+uptime _ = output . parse =<< (lift . readProcess "/usr/bin/uptime" [] $ "")
   where
     parse ut = let (a, b) = span (/= ',') ut
                    a' = unwords . tail . words $ a
