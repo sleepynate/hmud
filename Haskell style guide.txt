@@ -134,6 +134,9 @@ myStrings^..folded.packed
 Construct tuples using "(,)" and "(,,)" when appropriate:
 (,) <$> [1, 2] <*> [3, 4]
 
+If your data type has a single constructor with a single field, use a "newtype" declaration instead
+of a "data" declaration.
+
 When defining an infix operator, consider including a fixity definition. RWH p.244, 328
 
 If appropriate, use infix style in your "data" type and value constructors. RWH p.80
@@ -144,6 +147,8 @@ head . (\\) [0..]
 
 Consider manually instantiating "Show" rather than rolling your own function to pretty-print your
 type.
+
+Always prefer "Double" over "Float".
 
 Take advantage of record update syntax when you can.
 
@@ -162,7 +167,7 @@ Use "when", "unless", and "void" when appropriate.
 
 Use "null" instead of "(== [])".
 
-Don't forget that it's really cool to use infinite lists when you can:
+Use infinite lists when sensible:
 head . (\\) [0..]
 
 Derive "Enum" to use ".." in lists of your type.
@@ -172,3 +177,6 @@ Use monoid to sort by multiple criteria:
 sortBy mySort
   where
     mySort (x, y) (x', y') = (x `compare` x') `mappend` (y `compare` y')
+
+Apply "-funbox-strict-fields" when using strictness annotations ("!") on constructor fields.
+When using "-funbox-strict-fields", use the "-O" option for optimization.
