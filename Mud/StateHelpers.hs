@@ -51,7 +51,7 @@ import Data.List (sortBy)
 import Data.Monoid (mappend)
 import Data.Text.Read (decimal)
 import Data.Text.Strict.Lens (packed)
-import qualified Data.Map.Strict as M
+import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 
 

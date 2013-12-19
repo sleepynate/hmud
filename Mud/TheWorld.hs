@@ -16,8 +16,8 @@ import Control.Monad (unless, when)
 import Control.Monad.Trans.State
 import Data.Functor
 import Data.List ((\\))
-import qualified Data.IntMap.Strict as IM
-import qualified Data.Map.Strict as M
+import qualified Data.IntMap.Lazy as IM
+import qualified Data.Map.Lazy as M
 
 
 getUnusedId :: MudStack Id

@@ -84,7 +84,7 @@ quoteWithAndPad q x t = quoteWith q t' <> T.replicate p " "
   where
     t' = T.take (x - l - 1) t
     l  = sum $ [q^._1, q^._2]^..folded.to T.length
-    p  = x - (T.length t') - 2
+    p  = x - T.length t' - 2
 
 
 bracketPad :: Int -> T.Text -> T.Text

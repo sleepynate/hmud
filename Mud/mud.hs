@@ -1,6 +1,9 @@
 {-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+--h;ghc -O2 -rtsopts -fforce-recomp Mud/mud.hs
+--time cat sampleinput | ./Mud/mud
+
 module Main (main) where
 
 import Mud.Convenience
@@ -15,6 +18,9 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Directory (setCurrentDirectory)
 import System.Environment (getEnv, getProgName)
+
+
+-- TODO: There are bugs in the user messaging. Try the sample input and see.
 
 
 main :: IO ()

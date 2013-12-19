@@ -21,7 +21,7 @@ import Data.Functor
 import Data.List (delete, find, foldl', nub, nubBy, sort)
 import Data.Maybe (fromJust, isNothing)
 import Data.Text.Strict.Lens (packed, unpacked)
-import qualified Data.Map.Strict as M
+import qualified Data.Map.Lazy as M
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Console.Readline (readline)
