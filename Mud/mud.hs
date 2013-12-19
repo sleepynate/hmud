@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Mud.Main (main) where
+module Main (main) where
 
 import Mud.Convenience
 import Mud.PlayerCmds
@@ -14,8 +14,7 @@ import Data.Text.Strict.Lens (packed)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import System.Directory (setCurrentDirectory)
-import System.Environment (getEnv)
-import System.Environment (getProgName)
+import System.Environment (getEnv, getProgName)
 
 
 main :: IO ()
