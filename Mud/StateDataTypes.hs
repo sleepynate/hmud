@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -Werror #-}
+{-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 
 module Mud.StateDataTypes where
@@ -24,12 +24,12 @@ type Id = Int
 type Sing = T.Text
 type Plur = T.Text
 
-data Ent = Ent { _entId    :: Id
+data Ent = Ent { _entId    :: !Id
                , _entName  :: T.Text
                , _sing     :: Sing
                , _plur     :: Plur
                , _entDesc  :: T.Text
-               , _entFlags :: Int } deriving (Eq, Show)
+               , _entFlags :: !Int } deriving (Eq, Show)
 
 instance HasNameDesc Ent where
   name = lens _entName (\e v -> e { _entName = v })
@@ -42,8 +42,8 @@ instance HasFlags Ent where
 
 -- Has an entity.
 
-data Obj = Obj { _weight :: Int
-               , _vol    :: Int } deriving (Eq, Show)
+data Obj = Obj { _weight :: !Int
+               , _vol    :: !Int } deriving (Eq, Show)
 
 -----
 
@@ -72,9 +72,9 @@ newtype Con = Con Cap deriving (Eq, Show)
 
 -- Has an object (and an entity).
 
-data Wpn = Wpn { _wpnSub :: WpnSub
-               , _minDmg :: Int
-               , _maxDmg :: Int } deriving (Eq, Show)
+data Wpn = Wpn { _wpnSub :: !WpnSub
+               , _minDmg :: !Int
+               , _maxDmg :: !Int } deriving (Eq, Show)
 
 data WpnSub = OneHanded
             | TwoHanded deriving (Eq, Show)
@@ -85,8 +85,8 @@ data WpnSub = OneHanded
 
 type AC = Int
 
-data Arm = Arm { _armSub :: ArmSub
-               , _ac     :: AC } deriving (Eq, Show)
+data Arm = Arm { _armSub :: !ArmSub
+               , _ac     :: !AC } deriving (Eq, Show)
 
 data ArmSub = HeadA
             | UpBodyA
@@ -97,11 +97,11 @@ data ArmSub = HeadA
 
 -- Has an entity and an inventory and equipment.
 
-data Mob = Mob { _sex               :: Sex
-               , _st, _dx, _iq, _ht :: Int
-               , _hp, _fp           :: Int
-               , _xp                :: Int
-               , _hand              :: Hand } deriving (Eq, Show)
+data Mob = Mob { _sex               :: !Sex
+               , _st, _dx, _iq, _ht :: !Int
+               , _hp, _fp           :: !Int
+               , _xp                :: !Int
+               , _hand              :: !Hand } deriving (Eq, Show)
 
 data Sex = Male
          | Female
@@ -115,8 +115,8 @@ data Hand = RHand
 
 -- Has a mob (and an entity and an inventory and equipment).
 
-data Pla = Pla { _rmId :: Id
-               , _race :: Race } deriving (Eq, Show)
+data Pla = Pla { _rmId :: !Id
+               , _race :: !Race } deriving (Eq, Show)
 
 data Race = Human
           | Elf
@@ -133,8 +133,8 @@ data Race = Human
 
 data Rm = Rm { _rmName  :: T.Text
              , _rmDesc  :: T.Text
-             , _rmFlags :: Int
-             , north, south, east, west, up, down :: Id } deriving (Eq, Show)
+             , _rmFlags :: !Int
+             , north, south, east, west, up, down :: !Id } deriving (Eq, Show)
 
 instance HasNameDesc Rm where
   name = lens _rmName (\e v -> e { _rmName = v })

@@ -1,4 +1,4 @@
-{-# OPTIONS_GHC -Wall -Werror #-}
+{-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Mud.MiscDataTypes where
@@ -44,9 +44,9 @@ type Amount = Int
 type Index  = Int
 type NameSearchedFor = T.Text
 
-data GetEntResult = Mult    Amount NameSearchedFor (Maybe [Ent])
-                  | Indexed Index  NameSearchedFor (Either Plur Ent)
-                  | Sorry          NameSearchedFor
+data GetEntResult = Mult    !Amount NameSearchedFor (Maybe [Ent])
+                  | Indexed !Index  NameSearchedFor (Either Plur Ent)
+                  | Sorry           NameSearchedFor
 
 -----
 
