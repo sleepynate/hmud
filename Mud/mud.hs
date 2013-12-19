@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
---h;ghc -O2 -rtsopts -fforce-recomp Mud/mud.hs
+--H;ghc -O2 -rtsopts -fforce-recomp Mud/mud.hs
 --time cat sampleinput | ./Mud/mud
 
 module Main (main) where
