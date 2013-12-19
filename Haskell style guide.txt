@@ -45,6 +45,9 @@ return (x)
 Prefer explicit import lists over importing everything, unless your import list becomes unreasonably
 long (or you are importing a module whose functions are familiar to all Haskell programmers).
 
+Your main module should be named "Main" as opposed to "Foo.Main"; you may, however, put the main
+".hs" file in the "Foo" directory.
+
 Your modules should only export the functions that other modules use. Don't export everything.
 
 The "Main" module need only export "main".
