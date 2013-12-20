@@ -55,9 +55,6 @@ The "Main" module need only export "main".
 Import "Control.Functor" if you only need to use "(<$>)"; import "Control.Applicative" if you also
 need to use "(<*>)".
 
-By default, use strict data types and lazy functions.
-https://github.com/tibbe/haskell-style-guide/blob/master/haskell-style.md#dealing-with-laziness
-
 Consider using a list comprehension instead of "map".
 
 Prefer the composition of library functions over rolling your own fold.
