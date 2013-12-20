@@ -436,8 +436,8 @@ shuffleInvPut ci is = do
 descPutRem :: PutOrRem -> Inv -> ConName -> MudStack ()
 descPutRem por is cn = mkNameCountBothList is >>= mapM_ descPutRemHelper
   where
-    descPutRemHelper (_, c, _)
-      | c == 1                    = outputCon [ "You", verb, " the ", prep, cn, "." ]
+    descPutRemHelper (_, c, (s, _))
+      | c == 1                    = outputCon [ "You", verb, "the ", s, prep, cn, "." ]
     descPutRemHelper (_, c, both) = outputCon [ "You", verb, showText c, " ", makePlurFromBoth both, prep, cn, "." ]
     verb = case por of Put -> " put "
                        Rem -> " remove "

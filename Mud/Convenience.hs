@@ -25,7 +25,7 @@ import Mud.StateDataTypes
 import Control.Lens (_1, _2, folded, to)
 import Control.Lens.Operators ((^.), (^..))
 import Control.Monad.Trans.Class (lift)
-import Data.List (delete, sort)
+import Data.List (delete, foldl', sort)
 import Data.Text.Strict.Lens (unpacked)
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
@@ -102,7 +102,7 @@ findAbbrev needle hay = if null res then Nothing else Just . head $ res
 
 
 deleteAllInList :: (Eq a) => [a] -> [a] -> [a]
-deleteAllInList delThese fromThese = foldr (\x ys -> delete x ys) fromThese delThese
+deleteAllInList delThese fromThese = foldl' (\acc x -> delete x acc) fromThese delThese
 
 
 dumpFile :: FilePath -> IO ()

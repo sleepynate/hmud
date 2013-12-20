@@ -66,6 +66,9 @@ Avoid explicit recursion when it is possible (and more readable) to use a fold.
 
 To avoid space leaks, prefer "foldr" and "foldl'" over "foldl". RWH p.113
 
+As a rule of thumb, use "foldr" on lists that might be infinite, or when building up a data
+structure. Use "foldl'" on finite lists, and when the fold comes down to a single value.
+
 Consider using a guard to handle an edge case when pattern matching on function parameters:
 x `f` _ | x < 0 = z
 x `f` y         = a

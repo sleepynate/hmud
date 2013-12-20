@@ -1,9 +1,11 @@
 dist
 cabal-dev
 *.o
+*.p_o
 *.hi
 *.chi
 *.chs.h
 .virthualenv
 .DS_Store
 mud
+mud.prof

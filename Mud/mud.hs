@@ -1,8 +1,6 @@
 {-# OPTIONS_GHC -funbox-strict-fields -Wall -Werror #-}
 {-# LANGUAGE OverloadedStrings #-}
 
---ghc -O2 -rtsopts -fforce-recomp Mud/mud.hs
-
 module Main (main) where
 
 import Mud.Convenience
