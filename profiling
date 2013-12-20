@@ -1,0 +1,55 @@
+time cat sampleinput | ./Mud/mud
+
+=====
+
+Strict Maps:
+
+without "-O2"
+
+real	2m48.578s
+user	2m45.910s
+sys	0m2.506s
+
+with "-O2"
+
+real	2m2.974s
+user	2m0.584s
+sys	0m2.273s
+
+=====
+
+Lazy Maps:
+
+without "-O2"
+
+real	2m32.929s
+user	2m30.231s
+sys	0m2.537s
+
+with "-O2"
+
+real	2m2.702s
+user	2m0.325s
+sys	0m2.230s
+
+=====
+
+CONCLUSION:
+
+Use "-O2"!
+
+Lazy maps are marginally faster than strict maps.
+
+=====
+
+Lazy Text (with "-O2"):
+
+real	2m2.976s
+user	2m0.579s
+sys	0m2.250s
+
+=====
+
+CONCLUSION:
+
+Strict text is marginally faster than lazy text.
