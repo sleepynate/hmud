@@ -181,5 +181,14 @@ sortBy mySort
   where
     mySort (x, y) (x', y') = (x `compare` x') `mappend` (y `compare` y')
 
+Compile using "-O2" for optimization.
+
+In your own data types, use strictness annotations ("!") on atomic fields such as "Int", "Double",
+and "Bool".
+
+When creating a recursively defined type, make the spine lazy and the leaves strict.
+
+When deciding on whether to use a lazy or strict data type (for example, "Data.Map.Lazy" vs.
+"Data.Map.Strict"), base your decision on profiling.
+
 Apply "-funbox-strict-fields" when using strictness annotations ("!") on constructor fields.
-When using "-funbox-strict-fields", use the "-O" option for optimization.
