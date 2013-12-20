@@ -297,7 +297,7 @@ getAction :: Action
 getAction [""] = output "What do you want to get?"
 getAction (rs) = do
     is <- getPlaRmInv
-    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    gers <- mapM (`getEntsInInvByName` is) rs
     mesList <- mapM gerToMes gers
     let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
     mapM_ procGerMisForGet $ zip gers misList
@@ -344,7 +344,7 @@ dropAction :: Action
 dropAction [""] = output "What do you want to drop?"
 dropAction (rs) = getPlaInv >>= \is ->
     if null is then dudeYourHandsAreEmpty else do
-        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        gers <- mapM (`getEntsInInvByName` is) rs
         mesList <- mapM gerToMes gers
         let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
         mapM_ procGerMisForDrop $ zip gers misList
@@ -396,7 +396,7 @@ putRemDispatcher por (r:rs) = findCon (last rs) >>= \mes ->
     dispatchToHelper i = case por of Put -> putHelper i restWithoutCon 
                                      Rem -> remHelper i restWithoutCon
       where
-        restWithoutCon = r : (init rs)
+        restWithoutCon = r : init rs
 putRemDispatcher _ _ = undefined
 
 
@@ -404,7 +404,7 @@ putHelper :: Id -> Rest -> MudStack ()
 putHelper _  []   = return ()
 putHelper ci (rs) = do
     is <- getPlaInv
-    gers <- mapM (\r -> getEntsInInvByName r is) rs
+    gers <- mapM (`getEntsInInvByName` is) rs
     mesList <- mapM gerToMes gers
     let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
     mapM_ (procGerMisForPut ci) $ zip gers misList
@@ -460,7 +460,7 @@ remHelper ci (rs) = do
     cn <- (^.sing) <$> getEnt ci
     is <- getInv ci
     if null is then output $ "The " <> cn <> " appears to be empty." else do
-        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        gers <- mapM (`getEntsInInvByName` is) rs
         mesList <- mapM gerToMes gers
         let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
         mapM_ (procGerMisForRem ci cn) $ zip gers misList
@@ -489,7 +489,7 @@ ready :: Action
 ready [""] = output "What do you want to ready?"
 ready (rs) = getPlaInv >>= \is ->
     if null is then dudeYourHandsAreEmpty else do
-        res <- mapM (\r -> getEntsToReadyByName r is) rs
+        res <- mapM (`getEntsToReadyByName` is) rs
         let gers  = res^..folded._1
         let mrols = res^..folded._2
         mesList <- mapM gerToMes gers
@@ -709,7 +709,7 @@ unready :: Action
 unready [""] = output "What do you want to unready?"
 unready rs   = getPlaEq >>= \is ->
     if null is then dudeYoureNaked else do
-        gers <- mapM (\r -> getEntsInInvByName r is) rs
+        gers <- mapM (`getEntsInInvByName` is) rs
         mesList <- mapM gerToMes gers
         let misList = pruneDupIds [] $ (fmap . fmap . fmap) (^.entId) mesList
         mapM_ procGerMisForUnready $ zip gers misList
@@ -801,5 +801,5 @@ uptime _ = output . parse =<< (lift . readProcess "/usr/bin/uptime" [] $ "")
     parse ut = let (a, b) = span (/= ',') ut
                    a' = unwords . tail . words $ a
                    b' = dropWhile isSpace . takeWhile (/= ',') . tail $ b
-                   c  = (toUpper . head $ a') : (tail a')
+                   c  = (toUpper . head $ a') : tail a'
                in T.concat [ c^.packed, " ", b'^.packed, "." ]

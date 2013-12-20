@@ -102,7 +102,7 @@ findAbbrev needle hay = if null res then Nothing else Just . head $ res
 
 
 deleteAllInList :: (Eq a) => [a] -> [a] -> [a]
-deleteAllInList delThese fromThese = foldl' (\acc x -> delete x acc) fromThese delThese
+deleteAllInList delThese fromThese = foldl' (flip delete) fromThese delThese
 
 
 dumpFile :: FilePath -> IO ()
